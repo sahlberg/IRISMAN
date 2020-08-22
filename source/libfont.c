@@ -2,7 +2,7 @@
    TINY3D - font library / (c) 2010 Hermes  <www.elotrolado.net>
 
 */
-
+#if 0
 #include <stdio.h>
 #include <string.h>
 #include <stdarg.h>
@@ -651,3 +651,4 @@ float DrawFormatString(float x, float y, char *format, ...)
 
     return x;
 }
+#endif
