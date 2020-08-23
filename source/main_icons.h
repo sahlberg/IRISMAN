@@ -5,19 +5,22 @@ int LoadPNG(PngDatas *png, const char *filename)
 
     if(filename)
     {
-        if(is_ntfs_path((char *) filename))
-        {
-            int file_size = 0;
-            char *buff = LoadFile((char *) filename, &file_size);
+        int file_size = 0;
+	char *buff;
 
-            if(!buff) return FAILED;
+        switch (get_fs_type(filename)) {
+	case FS_DEFAULT:
+            ret = pngLoadFromFile(filename, &png2);
+	    break;
+	case FS_NTFS:
+	    buff = LoadFile((char *) filename, &file_size);
+	    if(!buff) return FAILED;
 
             ret = pngLoadFromBuffer((const void *) buff, file_size, &png2);
 
             free(buff);
+	    break;
         }
-        else
-            ret = pngLoadFromFile(filename, &png2);
     }
     else
         ret = pngLoadFromBuffer((const void *) png->png_in, png->png_size, &png2);
@@ -38,19 +41,23 @@ int LoadJPG(JpgDatas *jpg, char *filename)
 
     if(filename)
     {
-        if(is_ntfs_path(filename))
-        {
-            int file_size = 0;
-            char *buff = LoadFile((char *) filename, &file_size);
+        int file_size = 0;
+	char *buff;
+
+	switch (get_fs_type(filename)) {
+	case FS_DEFAULT:
+            ret = jpgLoadFromFile(filename, &jpg2);
+	    break;
+	case FS_NTFS:
+	    buff = LoadFile((char *) filename, &file_size);
 
             if(!buff) return FAILED;
 
             ret = jpgLoadFromBuffer((const void *) buff, file_size, &jpg2);
 
             free(buff);
+	    break;
         }
-        else
-            ret = jpgLoadFromFile(filename, &jpg2);
     }
     else ret = jpgLoadFromBuffer((const void *) jpg->jpg_in, jpg->jpg_size, &jpg2);
 

@@ -8,6 +8,7 @@
 #include "utils.h"
 #include <sys/file.h>
 
+#include "fs_types.h"
 #include "language.h"
 #include "main.h"
 #include "gfx.h"
@@ -128,7 +129,12 @@ static void single_bar(char *caption)
 
 int param_sfo_app_ver(char * path, char *app_ver)
 {
-    if(is_ntfs_path(path)) return -1;
+    switch (get_fs_type(path)) {
+    case FS_DEFAULT:
+        break;
+    case FS_NTFS:
+        return -1;
+    }
 
     s32 fd;
     u64 bytes;

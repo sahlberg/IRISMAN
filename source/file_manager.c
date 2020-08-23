@@ -15,6 +15,8 @@
     You should have received a copy of the GNU General Public License
     along with HMANAGER4.  If not, see <http://www.gnu.org/licenses/>.
 */
+#include "fs_types.h"
+
 #include "loader.h"
 
 #include <stdio.h>
@@ -552,37 +554,35 @@ static int CountFiles(char* path, int *nfiles, int *nfolders, u64 *size)
     int p1 = strlen(path);
     DIR_ITER *pdir = NULL;
     struct stat st;
+    sysFSStat stat;
     bool is_ntfs = is_ntfs_path(path);
 
-    if(is_ntfs)
-    {
+    switch (get_fs_type(path)) {
+    case FS_DEFAULT:
+        ret = sysLv2FsStat(path, &stat);
+        if (ret < 0)
+            return ret;
+
+        (*size)+= stat.st_size;
+        ret = sysLv2FsOpenDir(path, &dfd);
+        break;
+    case FS_NTFS:
         ret = ps3ntfs_stat(path, &st);
-        if (ret < 0) return ret;
+        if (ret < 0)
+          return ret;
 
         ret = 0;
         (*size)+= st.st_size;
-    }
-    else
-    {
-        sysFSStat stat;
-
-        ret = sysLv2FsStat(path, &stat);
-        if (ret < 0) return ret;
-
-        (*size)+= stat.st_size;
-
-    }
-
-
-    if(is_ntfs)
-    {
         pdir = ps3ntfs_diropen(path);
-        if(pdir) ret = SUCCESS; else ret = FAILED;
+        if(pdir)
+            ret = SUCCESS;
+        else
+            ret = FAILED;
+        break;
     }
-    else
-        ret = sysLv2FsOpenDir(path, &dfd);
 
-    if(ret) return ret;
+    if(ret)
+        return ret;
 
     read = sizeof(sysFSDirent);
     while ((!is_ntfs && !sysLv2FsReadDir(dfd, &dir, &read)) ||
@@ -598,8 +598,8 @@ static int CountFiles(char* path, int *nfiles, int *nfolders, u64 *size)
         strcat(path, "/");
         strcat(path, dir.d_name);
 
-        if(!is_ntfs)
-        {
+	switch (get_fs_type(path)) {
+	case FS_DEFAULT:
             if(dir.d_type & IS_DIRECTORY)
             {
                 (*nfolders) ++;
@@ -617,9 +617,8 @@ static int CountFiles(char* path, int *nfiles, int *nfolders, u64 *size)
                 (*size) += stat.st_size;
                 (*nfiles) ++;
             }
-        }
-        else
-        {
+	    break;
+	case FS_NTFS:
             if(S_ISDIR(st.st_mode))
             {
                 (*nfolders) ++;
@@ -635,6 +634,7 @@ static int CountFiles(char* path, int *nfiles, int *nfolders, u64 *size)
                 (*size) += st.st_size;
                 (*nfiles) ++;
             }
+	    break;
         }
     }
 
@@ -1113,23 +1113,24 @@ int exec_item(char *path, char *path2, char *filename, u32 d_type, s64 entry_siz
         {
             sprintf(MEM_MESSAGE, "Do you want to mount %s/%s as /dev_bdvd?", path, filename);
 
-            if(is_ntfs_path(path) && DrawDialogYesNo(MEM_MESSAGE) == YES)
-            {
-                sprintf(TEMP_PATH1, "%s/USRDIR/TEMP/pkg.iso", self_path);
-                sprintf(TEMP_PATH2, "%s/%s", path, filename);
-
-                unlink_secure(TEMP_PATH1);
-                launch_iso_build(TEMP_PATH1, TEMP_PATH2, false);
-
-                {SaveGameList(); fun_exit(); exit(0);}
-            }
-
-            if(!is_ntfs_path(path))
-            {
+            switch (get_fs_type(path)) {
+            case FS_DEFAULT:
                 sprintf(TEMP_PATH, "%s/%s", path, filename);
                 hex_editor(HEX_EDIT_FILE, TEMP_PATH, entry_size);
-            }
-            return 1;
+                return 1;
+            case FS_NTFS:
+                if (DrawDialogYesNo(MEM_MESSAGE) == YES)
+                  {
+                      sprintf(TEMP_PATH1, "%s/USRDIR/TEMP/pkg.iso", self_path);
+                      sprintf(TEMP_PATH2, "%s/%s", path, filename);
+
+                      unlink_secure(TEMP_PATH1);
+        	      launch_iso_build(TEMP_PATH1, TEMP_PATH2, false);
+
+		      {SaveGameList(); fun_exit(); exit(0);}
+		  }
+		return 1;
+	    }
         }
         else if(!fm_pane && (selcount1 > 1))
         {
@@ -1252,14 +1253,20 @@ static void change_dir(char *cur_path, char *path, char *dirname)
 
         if(n == 0) {path[n] = '/'; strcpy(cur_path, &path[n+1]); path[n+1] = 0;} else {strcpy(cur_path, &path[n + 1]); path[n] = 0;}
 
-        is_ntfs = is_ntfs_path(path);
-
-        if(!is_ntfs && sysLv2FsOpenDir(path, &fd) == SUCCESS)
-            sysLv2FsCloseDir(fd);
-        else if(is_ntfs && (pdir = ps3ntfs_diropen(path)) != NULL)
-            ps3ntfs_dirclose(pdir);
-        else
-            path[1] = 0; // to root
+	switch (get_fs_type(path)) {
+	case FS_DEFAULT:
+	    if(sysLv2FsOpenDir(path, &fd) == SUCCESS)
+                sysLv2FsCloseDir(fd);
+	    else
+	        path[1] = 0; // to root
+	    break;
+	case FS_NTFS:
+            if((pdir = ps3ntfs_diropen(path)) != NULL)
+	        ps3ntfs_dirclose(pdir);
+	    else
+	        path[1] = 0; // to root
+	    break;
+	}
 
         if(fm_pane) nentries2 = 0; else nentries1 = 0;
     }
@@ -2365,14 +2372,20 @@ int file_manager(char *pathw1, char *pathw2)
 
                 if(n == 0) {path1[n] = '/'; path1[n+1] = 0;} else path1[n] = 0;
 
-                is_ntfs = is_ntfs_path(path1);
-
-                if(!is_ntfs && sysLv2FsOpenDir(path1, &fd) == 0)
-                    sysLv2FsCloseDir(fd);
-                else if(is_ntfs && (pdir = ps3ntfs_diropen(path1)) != NULL)
-                    ps3ntfs_dirclose(pdir);
-                else
-                    path1[1] = 0; // to root
+		switch (get_fs_type(path1)) {
+		case FS_DEFAULT:
+                    if(sysLv2FsOpenDir(path1, &fd) == 0)
+                        sysLv2FsCloseDir(fd);
+		    else
+		        path1[1] = 0; // to root
+		    break;
+		case FS_NTFS:
+                    if((pdir = ps3ntfs_diropen(path1)) != NULL)
+                        ps3ntfs_dirclose(pdir);
+                    else
+                        path1[1] = 0; // to root
+		    break;
+		}
 
                 nentries1 = pos1 = sel1 = 0;
                 update_device_sizes |= 1; update_devices1 = true;
@@ -2509,14 +2522,20 @@ int file_manager(char *pathw1, char *pathw2)
 
                 if(n == 0) {path2[n] = '/'; path2[n+1] = 0;} else path2[n] = 0;
 
-                is_ntfs = is_ntfs_path(path2);
-
-                if(!is_ntfs && sysLv2FsOpenDir(path2, &fd) == 0)
-                    sysLv2FsCloseDir(fd);
-                else if(is_ntfs && (pdir = ps3ntfs_diropen(path2)) != NULL)
-                    ps3ntfs_dirclose(pdir);
-                else
-                    path2[1] = 0; // to root
+		switch (get_fs_type(path2)) {
+		case FS_DEFAULT:
+                    if(sysLv2FsOpenDir(path2, &fd) == 0)
+                        sysLv2FsCloseDir(fd);
+		    else
+                        path2[1] = 0; // to root
+		    break;
+		case FS_NTFS:
+		    if((pdir = ps3ntfs_diropen(path2)) != NULL)
+                        ps3ntfs_dirclose(pdir);
+		    else
+		        path2[1] = 0; // to root
+		    break;
+		}
 
                 nentries2 = pos2 = sel2 = 0;
                 update_device_sizes |= 2; update_devices2 = true;

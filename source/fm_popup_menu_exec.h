@@ -549,18 +549,25 @@
                        if(entries[n].d_type & IS_DIRECTORY)
                        {
                            DeleteDirectory(temp_buffer);
-                           if(is_ntfs_path(temp_buffer))
-                               ret = ps3ntfs_unlink(temp_buffer);
-                           else
+                           switch (get_fs_type(temp_buffer)) {
+                           case FS_DEFAULT:
                                ret = rmdir_secure(temp_buffer);
-
+                               break;
+                           case FS_NTFS:
+                               ret = ps3ntfs_unlink(temp_buffer);
+                               break;
+                           }
                        }
                        else
                        {
-                           if(is_ntfs_path(temp_buffer))
-                               ret = ps3ntfs_unlink(temp_buffer);
-                           else
+                           switch (get_fs_type(temp_buffer)) {
+                           case FS_DEFAULT:
                                ret = unlink_secure(temp_buffer);
+                               break;
+                           case FS_NTFS:
+                               ret = ps3ntfs_unlink(temp_buffer);
+                               break;
+                           }
                        }
 
                        if(ret < 0) break;

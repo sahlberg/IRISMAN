@@ -17,6 +17,7 @@
 
 */
 
+#include "fs_types.h"
 #include "loader.h"
 
 #include <stdio.h>
@@ -7938,8 +7939,13 @@ void mount_iso_game()
         is_ntfs_dev = NTFS_Test_Device(directories[currentgamedir].path_name + 1);
     }
 
-    if(is_ntfs_path(directories[currentgamedir].path_name) == false)
+    switch (get_fs_type(directories[currentgamedir].path_name)) {
+    case FS_DEFAULT:
         sysLv2FsChmod(directories[currentgamedir].path_name, 0170000 | 0777);
+        break;
+    case FS_NTFS:
+        break;
+    }
 
     bool is_iso = false;
 
@@ -8078,9 +8084,13 @@ void draw_app_version(float x, float y)
         }
         else
         {
-            if(is_ntfs_path(directories[currentgamedir].path_name) == false)
+            switch (get_fs_type(directories[currentgamedir].path_name)) {
+            case FS_DEFAULT:
                 sysLv2FsChmod(directories[currentgamedir].path_name, 0170000 | 0777);
-
+                break;
+            case FS_NTFS:
+                break;
+            }
             sprintf(tmp_path, "%s/PS3_GAME/PARAM.SFO", directories[currentgamedir].path_name);
             if(parse_param_sfo_appver(tmp_path, app_ver)) return;
         }

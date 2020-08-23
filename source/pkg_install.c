@@ -36,6 +36,8 @@
 #include <io/pad.h>
 
 #include <tiny3d.h>
+
+#include "fs_types.h"
 #include "libfont2.h"
 #include "language.h"
 #include "syscall8.h"
@@ -746,25 +748,23 @@ int copy_async(char *path1, char *path2, u64 size, char *progress_string1, char 
         return sysLv2FsLink(path1, path2);
     }
 
-    bool is_ntfs = is_ntfs_path(path1);
-
     int alternate = 0;
     char *mem= malloc(0x20000);
     if(!mem) return -3;
 
-    if(!is_ntfs)
-    {
+    switch (get_fs_type(path1)) {
+    case FS_DEFAULT:
         if(sysFsAioInit(path1)!= 0)  return -1;
 
         if(sysFsOpen(path1, SYS_O_RDONLY, &fdr, 0,0) != 0)
         {
            free(mem);return -1;
         }
-    }
-    else
-    {
+        break;
+    case FS_NTFS:
         fdr= ps3ntfs_open(path1, O_RDONLY, 0);
         if(fdr < 0) {free(mem);return -1;}
+        break;
     }
 
     if(sysFsAioInit(path2)!= 0)
@@ -790,6 +790,7 @@ int copy_async(char *path1, char *path2, u64 size, char *progress_string1, char 
 
     float parts = 100.0f / (((double) size)/ (double) 0x10000ULL);
     float cpart = 0;
+    int rd;
 
     while(pos2 < size)
     {
@@ -804,18 +805,18 @@ int copy_async(char *path1, char *path2, u64 size, char *progress_string1, char 
             t_read.size = size - pos; if(t_read.size > 0x10000ULL) t_read.size = 0x10000ULL;
             t_read.usrdata = (u64 ) &async_data;
 
-            if(!is_ntfs)
-            {
+            switch (get_fs_type(path1)) {
+            case FS_DEFAULT:
                 if(sysFsAioRead(&t_read, &id_r, fast_func_read) != 0)
                 {
                     ret= -4; goto error;
                 }
-            }
-            else
-            {
-                int rd =ps3ntfs_read(fdr, &mem[alternate*0x10000], (size_t) t_read.size);
+                break;
+            case FS_NTFS:
+                rd = ps3ntfs_read(fdr, &mem[alternate*0x10000], (size_t) t_read.size);
                 if(rd < 0 || rd != (int)t_read.size) async_data.readed = -1;
                 else async_data.readed = (s64) rd;
+                break;
             }
 
         }
@@ -863,9 +864,22 @@ int copy_async(char *path1, char *path2, u64 size, char *progress_string1, char 
     }
 
     msgDialogAbort();
-    if(!is_ntfs) sysFsClose(t_read.fd); else ps3ntfs_close(fdr);
+    switch (get_fs_type(path1)) {
+    case FS_DEFAULT:
+        sysFsClose(t_read.fd);
+        break;
+    case FS_NTFS:
+        ps3ntfs_close(fdr);
+        break;
+    }
     sysFsClose(t_write.fd);
-    if(!is_ntfs) sysFsAioFinish(path1);
+    switch (get_fs_type(path1)) {
+    case FS_DEFAULT:
+        sysFsAioFinish(path1);
+        break;
+    case FS_NTFS:
+        break;
+    }
     sysFsAioFinish(path2);
     free(mem);
     usleep(10000);
@@ -874,14 +888,41 @@ int copy_async(char *path1, char *path2, u64 size, char *progress_string1, char 
 
 error:
     msgDialogAbort();
-    if(!is_ntfs) sysFsAioCancel(id_r);
+    sysFsClose(t_write.fd);
+
+    switch (get_fs_type(path1)) {
+    case FS_DEFAULT:
+        sysFsAioCancel(id_r);
+        break;
+    case FS_NTFS:
+        break;
+    }
+
     sysFsAioCancel(id_w);
     usleep(200000);
-    if(!is_ntfs) sysFsClose(t_read.fd); else ps3ntfs_close(fdr);
+
+    switch (get_fs_type(path1)) {
+    case FS_DEFAULT:
+        sysFsClose(t_read.fd);
+        break;
+    case FS_NTFS:
+        ps3ntfs_close(fdr);
+        break;
+    }
+
     sysFsClose(t_write.fd);
-    if(!is_ntfs) sysFsAioFinish(path1);
+
+    switch (get_fs_type(path1)) {
+    case FS_DEFAULT:
+        sysFsAioFinish(path1);
+        break;
+    case FS_NTFS:
+        break;
+    }
+
     sysFsAioFinish(path2);
     free(mem);
 
     return ret;
+
 }

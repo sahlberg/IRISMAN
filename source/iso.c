@@ -35,6 +35,7 @@
 
 */
 
+#include "fs_types.h"
 #include "iso.h"
 #include "main.h"
 #include "utils.h"
@@ -379,23 +380,17 @@ u64 get_disk_free_space(char *path)
     struct statvfs svfs;
     u32 blockSize;
     u64 freeSize = 0;
-    int is_ntfs = 0;
 
-    if(!strncmp(path, "/ntfs", 5) || !strncmp(path, "/ext", 4)) is_ntfs = 1;
-
-    if(!is_ntfs)
-    {
-        if(sysFsGetFreeSize(path, &blockSize, &freeSize) !=0) return (u64) (-1LL);
+    switch (get_fs_type(path)) {
+    case FS_DEFAULT:
+        if(sysFsGetFreeSize(path, &blockSize, &freeSize) !=0)
+            return (u64) (-1LL);
         return (((u64)blockSize * freeSize));
+    case FS_NTFS:
+        if(ps3ntfs_statvfs((const char *) path, &svfs) != 0)
+            return (u64) (-1LL);
+        return ( ((u64)svfs.f_bsize * svfs.f_bfree));
     }
-    else
-    {
-        if(ps3ntfs_statvfs((const char *) path, &svfs) != 0) return (u64) (-1LL);
-    }
-
-    return ( ((u64)svfs.f_bsize * svfs.f_bfree));
-
-
 }
 
 #ifdef USE_64BITS_LSEEK
@@ -3163,7 +3158,13 @@ int extractps3iso(char *f_iso, char *g_path, int split)
     }
 
     fixpath(path1);
-    if(!is_ntfs_path(path1)) sysLv2FsChmod(path1, FS_S_IFMT | 0777);
+    switch (get_fs_type(path1)) {
+    case FS_DEFAULT:
+        sysLv2FsChmod(path1, FS_S_IFMT | 0777);
+        break;
+    case FS_NTFS:
+        break;
+    }
 
     n = strlen(path1);
 
@@ -4049,7 +4050,13 @@ int patchps3iso(char *f_iso, int nopause)
     }
 
     fixpath(path1);
-    if(!is_ntfs_path(path1)) sysLv2FsChmod(path1, FS_S_IFMT | 0777);
+    switch (get_fs_type(path1)) {
+    case FS_DEFAULT:
+        sysLv2FsChmod(path1, FS_S_IFMT | 0777);
+	break;
+    case FS_NTFS:
+        break;
+    }
 
     n = strlen(path1);
 

@@ -158,8 +158,20 @@ int CopyFile(char* path, char* path2)
 
     filepath_check(path2);
 
-    if(is_ntfs_path(path )) flags|= CPY_FILE1_IS_NTFS;
-    if(is_ntfs_path(path2)) flags|= CPY_FILE2_IS_NTFS;
+    switch (get_fs_type(path)) {
+    case FS_DEFAULT:
+        break;
+    case FS_NTFS:
+        flags|= CPY_FILE1_IS_NTFS;
+        break;
+    }
+    switch (get_fs_type(path2)) {
+    case FS_DEFAULT:
+        break;
+    case FS_NTFS:
+        flags|= CPY_FILE2_IS_NTFS;
+        break;
+    }
 
     if(allow_shadow_copy && !strncmp(path, "/dev_hdd0", 9) && !strncmp(path2, "/dev_hdd0", 9))
     {
@@ -502,8 +514,20 @@ int CopyDirectory(char* path, char* path2, char* path3)
 
     filepath_check(path2);
 
-    if(is_ntfs_path(path )) flags|= CPY_FILE1_IS_NTFS;
-    if(is_ntfs_path(path2)) flags|= CPY_FILE2_IS_NTFS;
+    switch (get_fs_type(path)) {
+    case FS_DEFAULT:
+        break;
+    case FS_NTFS:
+        flags|= CPY_FILE1_IS_NTFS;
+        break;
+    }
+    switch (get_fs_type(path2)) {
+    case FS_DEFAULT:
+        break;
+    case FS_NTFS:
+        flags|= CPY_FILE2_IS_NTFS;
+        break;
+    }
 
     if(flags & CPY_FILE1_IS_NTFS)
     {
@@ -617,17 +641,18 @@ static int copy_file_manager(char *path1, char *path2, sysFSDirent *ent, int nen
             }
             else
             {
-                if(is_ntfs_path(TEMP_PATH1))
-                {
-                    struct stat fstat;
-                    ret = ps3ntfs_stat(TEMP_PATH1, &fstat);
-                    size+= fstat.st_size;
-                }
-                else
-                {
-                    sysFSStat stat;
+                struct stat fstat;
+                sysFSStat stat;
+
+                switch (get_fs_type(TEMP_PATH1)) {
+                case FS_DEFAULT:
                     ret = sysLv2FsStat(TEMP_PATH1, &stat);
                     size+= stat.st_size;
+                    break;
+                case FS_NTFS:
+                    ret = ps3ntfs_stat(TEMP_PATH1, &fstat);
+                    size+= fstat.st_size;
+                    break;
                 }
 
                 if(ret != SUCCESS) goto end;
@@ -662,17 +687,18 @@ static int copy_file_manager(char *path1, char *path2, sysFSDirent *ent, int nen
                 if(ent[n].d_type & IS_DIRECTORY) ret = CountFiles(TEMP_PATH, &Files_To_Copy, &Folders_To_Copy, &size);
                 else
                 {
-                    if(is_ntfs_path(TEMP_PATH))
-                    {
-                        struct stat fstat;
-                        ret = ps3ntfs_stat(TEMP_PATH, &fstat);
-                        size+= fstat.st_size;
-                    }
-                    else
-                    {
-                        sysFSStat stat;
+                    struct stat fstat;
+                    sysFSStat stat;
+
+                    switch (get_fs_type(TEMP_PATH)) {
+                    case FS_DEFAULT:
                         ret = sysLv2FsStat(TEMP_PATH, &stat);
                         size+= stat.st_size;
+                        break;
+                    case FS_NTFS:
+                        ret = ps3ntfs_stat(TEMP_PATH, &fstat);
+                        size+= fstat.st_size;
+                        break;
                     }
 
                     Files_To_Copy++;
@@ -927,25 +953,30 @@ static int move_file_manager(char *path1, char *path2, sysFSDirent *ent, int nen
                 if(ret == 0)
                 {
                     DeleteDirectory(TEMP_PATH1);
-                    if(is_ntfs_path(TEMP_PATH1))
-                        ret = ps3ntfs_unlink(TEMP_PATH1);
-                    else
+                    switch (get_fs_type(TEMP_PATH1)) {
+                    case FS_DEFAULT:
                         ret = rmdir_secure(TEMP_PATH1);
+                        break;
+                    case FS_NTFS:
+                        ret = ps3ntfs_unlink(TEMP_PATH1);
+                        break;
+                    }
                 }
             }
             else
             {
-                if(is_ntfs_path(TEMP_PATH1))
-                {
-                    struct stat fstat;
-                    ret = ps3ntfs_stat(TEMP_PATH1, &fstat);
-                    size+= fstat.st_size;
-                }
-                else
-                {
-                    sysFSStat stat;
+                struct stat fstat;
+                sysFSStat stat;
+
+                switch (get_fs_type(TEMP_PATH1)) {
+                case FS_DEFAULT:
                     ret = sysLv2FsStat(TEMP_PATH1, &stat);
                     size+= stat.st_size;
+                    break;
+                case FS_NTFS:
+                    ret = ps3ntfs_stat(TEMP_PATH1, &fstat);
+                    size+= fstat.st_size;
+                    break;
                 }
 
                 if(ret != SUCCESS) goto end;
@@ -980,17 +1011,18 @@ static int move_file_manager(char *path1, char *path2, sysFSDirent *ent, int nen
                 if(ent[n].d_type & IS_DIRECTORY) ret = CountFiles(TEMP_PATH1, &Files_To_Copy, &Folders_To_Copy, &size);
                 else
                 {
-                    if(is_ntfs_path(TEMP_PATH1))
-                    {
-                        struct stat fstat;
-                        ret = ps3ntfs_stat(TEMP_PATH1, &fstat);
-                        size+= fstat.st_size;
-                    }
-                    else
-                    {
-                        sysFSStat stat;
+                    struct stat fstat;
+                    sysFSStat stat;
+                    
+                    switch (get_fs_type(TEMP_PATH1)) {
+                    case FS_DEFAULT:
                         ret = sysLv2FsStat(TEMP_PATH1, &stat);
                         size+= stat.st_size;
+                        break;
+                    case FS_NTFS:
+                        ret = ps3ntfs_stat(TEMP_PATH1, &fstat);
+                        size+= fstat.st_size;
+                        break;
                     }
 
                     Files_To_Copy++;
@@ -1019,10 +1051,14 @@ static int move_file_manager(char *path1, char *path2, sysFSDirent *ent, int nen
                     if(ret == 0)
                     {
                         DeleteDirectory(TEMP_PATH1);
-                        if(is_ntfs_path(TEMP_PATH1))
-                            ret = ps3ntfs_unlink(TEMP_PATH1);
-                        else
+                        switch (get_fs_type(TEMP_PATH1)) {
+                        case FS_DEFAULT:
                             ret = rmdir_secure(TEMP_PATH1);
+                            break;
+                        case FS_NTFS:
+                            ret = ps3ntfs_unlink(TEMP_PATH1);
+                            break;
+                        }
                     }
                 }
                 else
@@ -1030,10 +1066,14 @@ static int move_file_manager(char *path1, char *path2, sysFSDirent *ent, int nen
                     ret = CopyFile(TEMP_PATH1, TEMP_PATH2);
                     if(ret == 0)
                     {
-                        if(is_ntfs_path(TEMP_PATH1))
-                            ret = ps3ntfs_unlink(TEMP_PATH1);
-                        else
+		      switch (get_fs_type(TEMP_PATH1)) {
+		      case FS_DEFAULT:
                             ret = unlink_secure(TEMP_PATH1);
+			    break;
+		      case FS_NTFS:
+                            ret = ps3ntfs_unlink(TEMP_PATH1);
+			    break;
+		      }
                     }
                 }
 

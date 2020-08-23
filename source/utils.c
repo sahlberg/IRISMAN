@@ -25,6 +25,8 @@ Credits:
 
 */
 
+#include "fs_types.h"
+
 #include "utils.h"
 #include "language.h"
 #include <sys/file.h>
@@ -164,7 +166,13 @@ char * LoadFile(char *path, int *file_size)
 {
     *file_size = (int)get_filesize(path);
 
-    if(!is_ntfs_path(path)) sysLv2FsChmod(path, FS_S_IFMT | 0777);
+    switch (get_fs_type(path)) {
+    case FS_DEFAULT:
+        sysLv2FsChmod(path, FS_S_IFMT | 0777);
+	break;
+    case FS_NTFS:
+        break;
+    }
 
     if(*file_size==0) return NULL;
 
@@ -198,7 +206,12 @@ int SaveFile(char *path, char *mem, int file_size)
         ps3ntfs_close(fd);
     }
 
-    if(!is_ntfs_path(path)) sysLv2FsChmod(path, FS_S_IFMT | 0777);
+    switch (get_fs_type(path)) {
+    case FS_DEFAULT:
+        sysLv2FsChmod(path, FS_S_IFMT | 0777);
+    case FS_NTFS:
+        break;
+    }
 
     return SUCCESS;
 }
@@ -236,9 +249,19 @@ int ExtractFileFromISO(char *iso_file, char *file, char *outfile)
 
 u8 game_category[3] = "??";
 
+fs_type get_fs_type(char *path)
+{
+    if (!strncmp(path, "/ntfs", 5))
+        return FS_NTFS;
+    if (!strncmp(path, "/ext", 4))
+        return FS_NTFS;
+
+    return FS_DEFAULT;
+}
+
 bool is_ntfs_path(char *path)
 {
-    return (!strncmp(path, "/ntfs", 5) || !strncmp(path, "/ext", 4));
+    return get_fs_type(path) == FS_NTFS;
 }
 
 
@@ -270,44 +293,44 @@ bool is_browser_file(char *ext)
 
 u64 get_filesize(char *path)
 {
-    bool is_ntfs = is_ntfs_path(path);
+    struct stat st;
+    sysFSStat stat;
 
-    if(is_ntfs)
-    {
-        struct stat st;
-        if (ps3ntfs_stat(path, &st) < 0) return 0ULL;
-        return st.st_size;
-    }
-    else
-    {
-        sysFSStat stat;
+    switch (get_fs_type(path)) {
+    case FS_DEFAULT:
         if (sysLv2FsStat(path, &stat) < 0) return 0;
         return stat.st_size;
+    case FS_NTFS:
+        if (ps3ntfs_stat(path, &st) < 0) return 0ULL;
+        return st.st_size;
     }
 }
 
 bool isDir(char* path )
 {
-    if(is_ntfs_path(path))
-    {
-        struct stat st;
+    struct stat st;
+    sysFSStat stat;
+
+    switch (get_fs_type(path)) {
+    case FS_DEFAULT:
+        return sysLv2FsStat(path, &stat) == SUCCESS && (stat.st_mode & FS_S_IFDIR);;
+        break;
+    case FS_NTFS:
         return ps3ntfs_stat(path, &st) >= SUCCESS && (st.st_mode & FS_S_IFDIR);
     }
-
-    sysFSStat stat;
-    return sysLv2FsStat(path, &stat) == SUCCESS && (stat.st_mode & FS_S_IFDIR);;
 }
 
 bool file_exists( char* path )
 {
-    if(is_ntfs_path(path))
-    {
-        struct stat st;
+    struct stat st;
+    sysFSStat stat;
+
+    switch (get_fs_type(path)) {
+    case FS_DEFAULT:
+        return sysLv2FsStat(path, &stat) == SUCCESS;
+    case FS_NTFS:
         return ps3ntfs_stat(path, &st) >= SUCCESS;
     }
-
-    sysFSStat stat;
-    return sysLv2FsStat(path, &stat) == SUCCESS;
 }
 
 char * get_extension(char *path)
@@ -401,9 +424,16 @@ int strcmpext(char *path, char *ext)
 
 int fix_PS3_EXTRA_attribute(char *path)
 {
-    if(is_ntfs_path(path) || strlen(path) <= 4) return FAILED;
-
     char filepath[MAXPATHLEN];
+
+    switch (get_fs_type(path)) {
+    case FS_DEFAULT:
+        if(strlen(path) <= 4)
+            return FAILED;
+	break;
+    case FS_NTFS:
+        return FAILED;
+    }
 
     sprintf(filepath, "%s/PS3_EXTRA", path);
     if(!file_exists(filepath))  return SUCCESS;
@@ -416,7 +446,7 @@ int fix_PS3_EXTRA_attribute(char *path)
     unsigned char *mem = NULL;
 
     sprintf(filepath, "%s/PS3_GAME/PARAM.SFO", path);
-    if(!is_ntfs_path(filepath)) sysLv2FsChmod(filepath, FS_S_IFMT | 0777);
+    sysLv2FsChmod(filepath, FS_S_IFMT | 0777);
 
     if(!sysLv2FsOpen(filepath, 0, &fd, S_IREAD | S_IRGRP | S_IROTH, NULL, 0))
     {
@@ -471,7 +501,15 @@ int fix_PS3_EXTRA_attribute(char *path)
 
 int parse_ps3_disc(char *path, char * id)
 {
-    if(is_ntfs_path(path) || strlen(path) <= 4) return FAILED;
+    switch (get_fs_type(path)) {
+    case FS_DEFAULT:
+        if (strlen(path) <= 4)
+            return FAILED;
+	break;
+    case FS_NTFS:
+        return FAILED;
+    }
+
     if(strncmp(path + strlen(path) - 4, ".SFB", 4)) return FAILED;
     if(!file_exists(path)) return FAILED;
 
@@ -526,9 +564,13 @@ extern int firmware;
 
 int patch_exe_error_09(char *path_exe)
 {
-    if(is_ntfs_path(path_exe)) return 0;
-
-    sysLv2FsChmod(path_exe, FS_S_IFMT | 0777);
+    switch (get_fs_type(path_exe)) {
+    case FS_DEFAULT:
+        sysLv2FsChmod(path_exe, FS_S_IFMT | 0777);
+        break;
+    case FS_NTFS:
+        return 0;
+    }
 
     if(firmware >= 0x486C) return SUCCESS;
 
@@ -717,10 +759,10 @@ int sys_soft_reboot()
 
 int unlink_secure(void *path)
 {
-    bool is_ntfs = is_ntfs_path(path);
-
-    if(is_ntfs)
-    {
+    switch (get_fs_type(path)) {
+    case FS_DEFAULT:
+        break;
+    case FS_NTFS:
         return ps3ntfs_unlink(path);
     }
 
@@ -737,10 +779,10 @@ int unlink_secure(void *path)
 
 int rename_secure(void *path1, void *path2)
 {
-    bool is_ntfs = is_ntfs_path(path1);
-
-    if(is_ntfs)
-    {
+    switch (get_fs_type(path1)) {
+    case FS_DEFAULT:
+        break;
+    case FS_NTFS:
         return ps3ntfs_rename(path1, path2);
     }
 
@@ -758,22 +800,20 @@ int mkdir_secure(void *path)
 {
     int ret = FAILED;
 
-    bool is_ntfs = is_ntfs_path(path);
+    switch (get_fs_type(path)) {
+    case FS_DEFAULT:
+        break;
+    case FS_NTFS:
+        return ps3ntfs_mkdir(path, 0777);
+    }
 
-    if(is_ntfs)
+    DIR  *dir = opendir(path);
+    if(!dir)
     {
-        ret = ps3ntfs_mkdir(path, 0777);
+	ret = mkdir(path, S_IRWXO | S_IRWXU | S_IRWXG | S_IFDIR);
     }
     else
-    {
-        DIR  *dir = opendir(path);
-        if(!dir)
-        {
-            ret = mkdir(path, S_IRWXO | S_IRWXU | S_IRWXG | S_IFDIR);
-        }
-        else
-            closedir(dir);
-    }
+        closedir(dir);
 
     return ret;
 }
@@ -782,10 +822,10 @@ int rmdir_secure(void *path)
 {
     int ret = FAILED;
 
-    bool is_ntfs = is_ntfs_path(path);
-
-    if(is_ntfs)
-    {
+    switch (get_fs_type(path)) {
+    case FS_DEFAULT:
+        break;
+    case FS_NTFS:
         return ps3ntfs_unlink((char*)path);
     }
 
@@ -2503,13 +2543,13 @@ void DeleteDirectory(const char* path)
 {
     char newpath[0x440];
     sysFSDirent dir; u64 read = sizeof(sysFSDirent);
+    int dfd;
+    struct stat st;
+    DIR_ITER *pdir = NULL;
 
-    bool is_ntfs = is_ntfs_path((char *) path);
 
-    if (!is_ntfs)
-    {
-        int dfd;
-
+    switch (get_fs_type(path)) {
+    case FS_DEFAULT:
         if (sysLv2FsOpenDir(path, &dfd)) return;
 
         sysFsChmod(path, FS_S_IFDIR | 0777);
@@ -2537,12 +2577,8 @@ void DeleteDirectory(const char* path)
         }
 
         sysLv2FsCloseDir(dfd);
-    }
-    else
-    {
-        struct stat st;
-        DIR_ITER *pdir = NULL;
-
+	break;
+    case FS_NTFS:
         if ((pdir = ps3ntfs_diropen(path)) == NULL) return;
 
         while (ps3ntfs_dirnext(pdir, dir.d_name, &st) == 0)
@@ -2560,6 +2596,7 @@ void DeleteDirectory(const char* path)
         }
 
         ps3ntfs_dirclose(pdir);
+	break;
     }
 }
 
