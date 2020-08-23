@@ -32,6 +32,7 @@
 #include <sys/file.h>
 #include <sys/thread.h>
 
+#include "../fs_types.h"
 #include "defines.h"
 #include "client.h"
 #include "functions.h"
@@ -527,9 +528,10 @@ cdup:           bytes = 0;
                 }
                 else
                 {
-                    s32 fd;
+		    vfs_dir *vdir;
 
-                    if(sysLv2FsOpenDir(tmp_path, &fd) == 0)
+                    vdir = fs_opendir(tmp_path);
+		    if (vdir)
                     {
                         if(data_s == -1)
                         {
@@ -582,7 +584,7 @@ cdup:           bytes = 0;
                         sysFSDirent entry;
                         u64 read;
 
-                        while(sysLv2FsReadDir(fd, &entry, &read) == 0 && read > 0)
+                        while(sysLv2FsReadDir(vdir->dfd, &entry, &read) == 0 && read > 0)
                         {
                             if(*wcard && strcasestr(entry.d_name, wcard) == NULL) continue;
 
@@ -667,7 +669,7 @@ cdup:           bytes = 0;
                         bytes = ftpresp(temp, 550, "Cannot access directory");
                     }
 
-                    sysLv2FsCloseDir(fd);
+                    fs_closedir(vdir);
                 }
 
                 send(conn_s, temp, bytes, 0);
@@ -678,11 +680,12 @@ cdup:           bytes = 0;
             else
             if(strcasecmp(cmd, "MLSD") == 0)
             {
-                s32 fd;
+	        vfs_dir *vdir;
 
                 parse_wildcard(param, cwd, tmp_path, wcard, itemp);
-
-                if(sysLv2FsOpenDir(tmp_path, &fd) == 0)
+		
+                vdir = fs_opendir(tmp_path);
+                if(!vdir)
                 {
                     if(data_s == -1)
                     {
@@ -737,7 +740,7 @@ cdup:           bytes = 0;
 
                     bool is_root  = (strcmp2(tmp_path, "/") == 0);
 
-                    while(sysLv2FsReadDir(fd, &entry, &read) == 0 && read > 0)
+                    while(sysLv2FsReadDir(vdir->dfd, &entry, &read) == 0 && read > 0)
                     {
                         pad_last_time = 0;
 
@@ -790,7 +793,7 @@ cdup:           bytes = 0;
                     bytes = ftpresp(temp, 550, "Cannot access directory");
                 }
 
-                sysLv2FsCloseDir(fd);
+                fs_closedir(vdir);
 
                 send(conn_s, temp, bytes, 0);
 
@@ -800,11 +803,12 @@ cdup:           bytes = 0;
             else
             if(strcasecmp(cmd, "MLST") == 0)
             {
-                s32 fd;
+	        vfs_dir *vdir;
 
                 parse_wildcard(param, cwd, tmp_path, wcard, itemp);
 
-                if(sysLv2FsOpenDir(tmp_path, &fd) == 0)
+                vdir = fs_opendir(tmp_path);
+                if(!vdir)
                 {
                     bytes = sprintf(temp, "250-Directory Listing:\r\n");
                     send(conn_s, temp, bytes, 0);
@@ -815,7 +819,7 @@ cdup:           bytes = 0;
 
                     bool is_root  = (strcmp2(tmp_path, "/") == 0);
 
-                    while(sysLv2FsReadDir(fd, &entry, &read) == 0 && read > 0)
+                    while(sysLv2FsReadDir(vdir->dfd, &entry, &read) == 0 && read > 0)
                     {
                         pad_last_time = 0;
 
@@ -868,7 +872,7 @@ cdup:           bytes = 0;
                     bytes = ftpresp(temp, 550, "Cannot access directory");
                 }
 
-                sysLv2FsCloseDir(fd);
+                fs_closedir(vdir);
 
                 send(conn_s, temp, bytes, 0);
             }
@@ -879,13 +883,13 @@ cdup:           bytes = 0;
 
                 parse_wildcard(param, cwd, tmp_path, wcard, itemp);
 
-                if(is_ntfs_path(tmp_path))
-                {
-                    DIR_ITER *fd = NULL;
-
-                    fd = ps3ntfs_diropen(tmp_path);
-                    if(fd != NULL)
-                    {
+		vfs_dir *vdir;
+		vdir = fs_opendir(tmp_path);
+		if (!vdir) {
+		        bytes = ftpresp(temp, 550, "Cannot access directory");
+		} else {
+		    if(is_ntfs_path(tmp_path))
+		    {
                         if(data_s == -1)
                         {
                             if(pasv_s > 0)
@@ -936,7 +940,7 @@ cdup:           bytes = 0;
                         struct stat stat;
                         sysFSDirent entry;
 
-                        while(ps3ntfs_dirnext(fd, entry.d_name, &stat) == 0)
+                        while(ps3ntfs_dirnext(vdir->pdir, entry.d_name, &stat) == 0)
                         {
                             pad_last_time = 0;
                             bytes = sprintf(temp, "%s\r\n", entry.d_name);
@@ -944,20 +948,9 @@ cdup:           bytes = 0;
                         }
 
                         bytes = ftpresp(temp, 226, "Transfer complete");
-                    }
-                    else
-                    {
-                        bytes = ftpresp(temp, 550, "Cannot access NTFS/ext directory");
-                    }
-
-                    ps3ntfs_dirclose(fd);
                 }
                 else
                 {
-                    s32 fd;
-
-                    if(sysLv2FsOpenDir(tmp_path, &fd) == 0)
-                    {
                         if(data_s == -1)
                         {
                             if(pasv_s > 0)
@@ -1008,7 +1001,7 @@ cdup:           bytes = 0;
                         sysFSDirent entry;
                         u64 read;
 
-                        while(sysLv2FsReadDir(fd, &entry, &read) == 0 && read > 0)
+                        while(sysLv2FsReadDir(vdir->dfd, &entry, &read) == 0 && read > 0)
                         {
                             pad_last_time = 0;
                             bytes = sprintf(temp, "%s\r\n", entry.d_name);
@@ -1032,14 +1025,9 @@ cdup:           bytes = 0;
                         }
 
                         bytes = ftpresp(temp, 226, "Transfer complete");
+			fs_closedir(vdir);
                     }
-                    else
-                    {
-                        bytes = ftpresp(temp, 550, "Cannot access directory");
-                    }
-
-                    sysLv2FsCloseDir(fd);
-                }
+		}
 
                 send(conn_s, temp, bytes, 0);
 

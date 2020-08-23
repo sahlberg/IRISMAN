@@ -1227,8 +1227,6 @@ static void set_background_picture(char *path, char *filename)
 static void change_dir(char *cur_path, char *path, char *dirname)
 {
     int n;
-    s32 fd;
-    DIR_ITER *pdir = NULL;
     bool is_ntfs;
     vfs_dir *vdir;
 
@@ -1279,17 +1277,11 @@ static void change_dir(char *cur_path, char *path, char *dirname)
             }
         }
 
-        if(!is_ntfs && sysLv2FsOpenDir(path, &fd) == SUCCESS)
-        {
-            if(fm_pane) nentries2 = 0; else nentries1 = 0;
-            sysLv2FsCloseDir(fd);
-        }
-        else if(is_ntfs && (pdir = ps3ntfs_diropen(path)) != NULL)
-        {
-            if(fm_pane) nentries2 = 0; else nentries1 = 0;
-            ps3ntfs_dirclose(pdir);
-        }
-        else
+        vdir = fs_opendir(path);
+	if (vdir) {
+                if(fm_pane) nentries2 = 0; else nentries1 = 0;
+	        fs_closedir(vdir);
+	} else
             path[n] = 0;
     }
 }
@@ -1599,10 +1591,8 @@ int file_manager(char *pathw1, char *pathw2)
     if(path1[0] == 0 || file_exists(path1) == false) strncpy(path1, "/", MAX_PATH_LEN);
     if(path2[0] == 0 || file_exists(path2) == false) strncpy(path2, "/", MAX_PATH_LEN);
 
-    s32 fd;
-    DIR_ITER *pdir = NULL;
-    struct stat st;
     vfs_dir *vdir;
+    struct stat st;
 
     bool have_dot;
 
@@ -1747,99 +1737,101 @@ int file_manager(char *pathw1, char *pathw2)
                         entries1[i].d_type = (entries1[i].d_type & ~IS_MARKED);
                 }
                 else
-                if((!is_ntfs && (sysLv2FsOpenDir(path1, &fd) == SUCCESS)) ||
-                   ( is_ntfs && (pdir = ps3ntfs_diropen(path1)) != NULL))
-                {
-                    u64 read;
+		{
+		    vdir = fs_opendir(path1);
+		    if (vdir)
+		    {
+		        u64 read;
 
-                    int old_entries = nentries1;
-                    nentries1 = selcount1 = selsize1 = 0;
+			int old_entries = nentries1;
+			nentries1 = selcount1 = selsize1 = 0;
 
-                    while((!is_ntfs && sysLv2FsReadDir(fd, &entries1[nentries1], &read) == 0 && read > 0) ||
-                          ( is_ntfs && ps3ntfs_dirnext(pdir, entries1[nentries1].d_name, &st) == 0))
-                    {
-                        if(nentries1 >= MAX_ENTRIES) break;
+			while((!is_ntfs && sysLv2FsReadDir(vdir->dfd, &entries1[nentries1], &read) == 0 && read > 0) ||
+			      ( is_ntfs && ps3ntfs_dirnext(vdir->pdir, entries1[nentries1].d_name, &st) == 0))
+			{
+			    if(nentries1 >= MAX_ENTRIES) break;
 
-                        if(entries1[nentries1].d_name[0] == '.')
-                        {
-                            if(entries1[nentries1].d_name[1] == 0) continue;
-                            if(entries1[nentries1].d_name[1] == '.') have_dot = true;
-                        }
-
-                        if(is_ntfs)
-                        {
-                            entries1[nentries1].d_type = (S_ISDIR(st.st_mode)) ? IS_DIRECTORY : IS_FILE;
-                        }
-
-                        entries1_type[nentries1] = entries1_size[nentries1] = 0;
-
-                        if(entries1[nentries1].d_type & IS_DIRECTORY)
-                        {
-                            entries1[nentries1].d_type = IS_DIRECTORY;
-                            if((path1[1] == 0))
+			    if(entries1[nentries1].d_name[0] == '.')
                             {
-                                sysFSStat stat;
-                                sprintf(temp_buffer, "%s/%s", path1, entries1[nentries1].d_name);
-                                if(sysLv2FsStat(temp_buffer, &stat) != SUCCESS) entries1[nentries1].d_type |= IS_NOT_AVAILABLE;
-                            }
-                        }
-                        else
-                            entries1[nentries1].d_type = IS_FILE;
+			        if(entries1[nentries1].d_name[1] == 0) continue;
+				if(entries1[nentries1].d_name[1] == '.') have_dot = true;
+			    }
 
-                        nentries1++;
-
-                        tiny3d_Flip();
-                        ps3pad_read();
-
-                        if((old_pad & BUTTON_CIRCLE_) || (new_pad & BUTTON_CIRCLE_)) break;
-                    }
-
-                    if(is_ntfs) ps3ntfs_dirclose(pdir); else sysLv2FsCloseDir(fd);
-
-                    if((path1[1] == 0))
-                    {   // NTFS devices
-                        int k;
-
-                        for(k = 0; k < 8; k++)
-                        {
-                            for (i = 0; i < mountCount[k]; i++)
+			    if(is_ntfs)
                             {
-                                if(nentries1 >= MAX_ENTRIES) break;
-                                if((mounts[k]+i)->name[0])
-                                {
-                                    entries1[nentries1].d_type = IS_DIRECTORY;
-                                    sprintf(entries1[nentries1].d_name, "%s:", (mounts[k]+i)->name);
-                                    entries1_type[nentries1] = 0;
-                                    entries1_size[nentries1] = 0;
-                                    nentries1++;
-                                }
-                            }
-                        }
-                    }
+			        entries1[nentries1].d_type = (S_ISDIR(st.st_mode)) ? IS_DIRECTORY : IS_FILE;
+			    }
 
-                    if((path1[1] != 0) && !have_dot)
-                    {
-                        entries1[nentries1].d_type = IS_DIRECTORY;
-                        sprintf(entries1[nentries1].d_name, "..");
-                        nentries1++;
-                    }
+			    entries1_type[nentries1] = entries1_size[nentries1] = 0;
 
-                    if(old_entries > nentries1) pos1 = sel1 = 0;
+			    if(entries1[nentries1].d_type & IS_DIRECTORY)
+			    {
+			        entries1[nentries1].d_type = IS_DIRECTORY;
+				if((path1[1] == 0))
+				{
+				    sysFSStat stat;
+				    sprintf(temp_buffer, "%s/%s", path1, entries1[nentries1].d_name);
+				    if(sysLv2FsStat(temp_buffer, &stat) != SUCCESS) entries1[nentries1].d_type |= IS_NOT_AVAILABLE;
+				}
+			    }
+			    else
+			        entries1[nentries1].d_type = IS_FILE;
 
-                    qsort(entries1, nentries1, sizeof(sysFSDirent), entry_compare);
-                    for (i = 0; i < nentries1; i++)
-                    {
-                        struct stat s;
-                        if(path1[0] != 0)
-                        {
-                            sprintf(temp_buffer, "%s/%s", path1, entries1[i].d_name);
-                            if(stat(temp_buffer, &s) == SUCCESS) entries1_size[i] = s.st_size;
-                        }
-                        else
-                            entries1_size[i] = 0;
-                    }
-                    update_devices1 = false;
-                }
+			    nentries1++;
+
+			    tiny3d_Flip();
+			    ps3pad_read();
+
+			    if((old_pad & BUTTON_CIRCLE_) || (new_pad & BUTTON_CIRCLE_)) break;
+			}
+
+			fs_closedir(vdir);
+
+			if((path1[1] == 0))
+			{   // NTFS devices
+			    int k;
+
+			    for(k = 0; k < 8; k++)
+			    {
+			        for (i = 0; i < mountCount[k]; i++)
+				    {
+				        if(nentries1 >= MAX_ENTRIES) break;
+					if((mounts[k]+i)->name[0])
+					{
+					    entries1[nentries1].d_type = IS_DIRECTORY;
+					    sprintf(entries1[nentries1].d_name, "%s:", (mounts[k]+i)->name);
+					    entries1_type[nentries1] = 0;
+					    entries1_size[nentries1] = 0;
+					    nentries1++;
+					}
+				    }
+			    }
+			}
+
+			if((path1[1] != 0) && !have_dot)
+			{
+			    entries1[nentries1].d_type = IS_DIRECTORY;
+			    sprintf(entries1[nentries1].d_name, "..");
+			    nentries1++;
+			}
+
+			if(old_entries > nentries1) pos1 = sel1 = 0;
+
+			qsort(entries1, nentries1, sizeof(sysFSDirent), entry_compare);
+			for (i = 0; i < nentries1; i++)
+			{
+			    struct stat s;
+			    if(path1[0] != 0)
+			    {
+			        sprintf(temp_buffer, "%s/%s", path1, entries1[i].d_name);
+				if(stat(temp_buffer, &s) == SUCCESS) entries1_size[i] = s.st_size;
+			    }
+			    else
+			        entries1_size[i] = 0;
+			}
+			update_devices1 = false;
+		    }
+		}
             }
 
 
@@ -1866,100 +1858,102 @@ int file_manager(char *pathw1, char *pathw2)
                     for(int i = 0; i < nentries2; i++)
                         entries2[i].d_type = (entries2[i].d_type & ~IS_MARKED);
                 }
-                else
-                if((!is_ntfs && (sysLv2FsOpenDir(path2, &fd)) == SUCCESS) ||
-                   ( is_ntfs && (pdir = ps3ntfs_diropen(path2)) != NULL))
+                else 
                 {
-                    u64 read;
+		    vdir = fs_opendir(path2);
+		    if (vdir)
+		    {  
+		        u64 read;
 
-                    int old_entries = nentries2;
-                    nentries2 = selcount2 = selsize2 = 0;
+			int old_entries = nentries2;
+			nentries2 = selcount2 = selsize2 = 0;
 
-                    while((!is_ntfs && sysLv2FsReadDir(fd, &entries2[nentries2], &read) == 0 && read > 0) ||
-                          ( is_ntfs && ps3ntfs_dirnext(pdir, entries2[nentries2].d_name, &st) == 0))
-                    {
-                        if(nentries2 >= MAX_ENTRIES) break;
+			while((!is_ntfs && sysLv2FsReadDir(vdir->dfd, &entries2[nentries2], &read) == 0 && read > 0) ||
+			      ( is_ntfs && ps3ntfs_dirnext(vdir->pdir, entries2[nentries2].d_name, &st) == 0))
+			{
+			    if(nentries2 >= MAX_ENTRIES) break;
 
-                        if(entries2[nentries2].d_name[0] == '.')
-                        {
-                            if(entries2[nentries2].d_name[1] == 0) continue;
-                            if(entries2[nentries2].d_name[1] == '.') have_dot = true;
-                        }
+			    if(entries2[nentries2].d_name[0] == '.')
+			    {
+			        if(entries2[nentries2].d_name[1] == 0) continue;
+				if(entries2[nentries2].d_name[1] == '.') have_dot = true;
+			    }
 
-                        if(is_ntfs)
-                        {
-                            entries2[nentries2].d_type = (S_ISDIR(st.st_mode)) ? IS_DIRECTORY : IS_FILE;
-                        }
+			    if(is_ntfs)
+			    {
+			        entries2[nentries2].d_type = (S_ISDIR(st.st_mode)) ? IS_DIRECTORY : IS_FILE;
+			    }
 
-                        entries2_type[nentries2] = entries2_size[nentries2] = 0;
+			    entries2_type[nentries2] = entries2_size[nentries2] = 0;
 
-                        if(entries2[nentries2].d_type & IS_DIRECTORY)
-                        {
-                            entries2[nentries2].d_type = IS_DIRECTORY;
-                            if((path2[1] == 0))
-                            {
-                                sysFSStat stat;
-                                sprintf(temp_buffer, "%s/%s", path2, entries2[nentries2].d_name);
-                                if(sysLv2FsStat(temp_buffer, &stat) != SUCCESS) entries2[nentries2].d_type |= IS_NOT_AVAILABLE;
-                            }
-                        }
-                        else
-                            entries2[nentries2].d_type = IS_FILE;
-
-                        nentries2++;
-
-                        tiny3d_Flip();
-                        ps3pad_read();
-
-                        if((old_pad & BUTTON_CIRCLE_) || (new_pad & BUTTON_CIRCLE_)) break;
-                    }
-
-                    if(is_ntfs) ps3ntfs_dirclose(pdir); else sysLv2FsCloseDir(fd);
-
-                    if((path2[1] == 0))
-                    {   // NTFS devices
-                        int k;
-
-                        for(k = 0; k < 8; k++)
-                        {
-                            for (i = 0; i < mountCount[k]; i++)
-                            {
-                                if(nentries2 >= MAX_ENTRIES) break;
-                                if((mounts[k]+i)->name[0])
+			    if(entries2[nentries2].d_type & IS_DIRECTORY)
+			    {
+			        entries2[nentries2].d_type = IS_DIRECTORY;
+				if((path2[1] == 0))
                                 {
-                                    entries2[nentries2].d_type = IS_DIRECTORY;
-                                    sprintf(entries2[nentries2].d_name, "%s:", (mounts[k]+i)->name);
-                                    entries2_type[nentries2] = 0;
-                                    entries2_size[nentries2] = 0;
-                                    nentries2++;
-                                }
-                            }
-                        }
-                    }
+				    sysFSStat stat;
+				    sprintf(temp_buffer, "%s/%s", path2, entries2[nentries2].d_name);
+				    if(sysLv2FsStat(temp_buffer, &stat) != SUCCESS) entries2[nentries2].d_type |= IS_NOT_AVAILABLE;
+				}
+			    }
+			    else
+			        entries2[nentries2].d_type = IS_FILE;
 
-                    if((path2[1] != 0) && !have_dot)
-                    {
-                        entries2[nentries2].d_type = IS_DIRECTORY;
-                        sprintf(entries2[nentries2].d_name, "..");
-                        nentries2++;
-                    }
+			    nentries2++;
 
-                    if(old_entries > nentries2) pos2 = sel2 = 0;
+			    tiny3d_Flip();
+			    ps3pad_read();
 
-                    qsort(entries2, nentries2, sizeof(sysFSDirent), entry_compare);
-                    for (i = 0; i < nentries2; i++)
-                    {
-                        struct stat s;
-                        if(path2[0] != 0)
-                        {
-                            sprintf(temp_buffer, "%s/%s", path2, entries2[i].d_name);
-                            if(stat(temp_buffer, &s) == SUCCESS) entries2_size[i] = s.st_size;
-                        }
-                        else
-                            entries2_size[i] = 0;
-                    }
-                    update_devices2 = false;
-                }
+			    if((old_pad & BUTTON_CIRCLE_) || (new_pad & BUTTON_CIRCLE_)) break;
+			}
+
+			fs_closedir(vdir);
+
+			if((path2[1] == 0))
+			{   // NTFS devices
+			    int k;
+
+			    for(k = 0; k < 8; k++)
+			    {
+			        for (i = 0; i < mountCount[k]; i++)
+				{
+				    if(nentries2 >= MAX_ENTRIES) break;
+				    if((mounts[k]+i)->name[0])
+				    {
+				        entries2[nentries2].d_type = IS_DIRECTORY;
+					sprintf(entries2[nentries2].d_name, "%s:", (mounts[k]+i)->name);
+					entries2_type[nentries2] = 0;
+					entries2_size[nentries2] = 0;
+					nentries2++;
+				    }
+				}
+			    }
+			}
+			
+			if((path2[1] != 0) && !have_dot)
+			{
+			    entries2[nentries2].d_type = IS_DIRECTORY;
+			    sprintf(entries2[nentries2].d_name, "..");
+			    nentries2++;
+			}
+
+			if(old_entries > nentries2) pos2 = sel2 = 0;
+
+			qsort(entries2, nentries2, sizeof(sysFSDirent), entry_compare);
+			for (i = 0; i < nentries2; i++)
+			{
+			    struct stat s;
+			    if(path2[0] != 0)
+			    {
+			        sprintf(temp_buffer, "%s/%s", path2, entries2[i].d_name);
+				if(stat(temp_buffer, &s) == SUCCESS) entries2_size[i] = s.st_size;
+			    }
+			    else
+			        entries2_size[i] = 0;
+			}
+			update_devices2 = false;
+		    }
+		}
             }
         }
 

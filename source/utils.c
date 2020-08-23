@@ -630,14 +630,13 @@ void patch_error_09( const char *path, int quick_ver_check )
     }
 
 
-    int d = -1;
     s32 ret = 1;
+    vfs_dir *vdir;
 
     /* Open the directory specified by "path". */
-    ret = sysLv2FsOpenDir( path, &d );
-
-    /* Check it was opened. */
-    if( d == -1 ) return;
+    vdir = fs_opendir(path);
+    if(!vdir)
+            return;
 
     int ext;
     char f[MAX_PATH_LEN];
@@ -648,7 +647,7 @@ void patch_error_09( const char *path, int quick_ver_check )
         u64 read = 0;
 
         /* "Readdir" gets subsequent entries from "d". */
-        ret = sysLv2FsReadDir( d, &entry, &read );
+        ret = sysLv2FsReadDir(vdir->dfd, &entry, &read );
         if ( read == 0 || ret != SUCCESS )
         {
             /* There are no more entries in this directory, so break
@@ -696,7 +695,7 @@ void patch_error_09( const char *path, int quick_ver_check )
     }
 
     /* After going through all the entries, close the directory. */
-    sysLv2FsCloseDir( d );
+    fs_closedir(vdir);
 }
 
 int sys_shutdown()
@@ -2548,11 +2547,12 @@ void DeleteDirectory(const char* path)
 
 int FixDirectory(const char* path, int fcount)
 {
-    int dfd;
     u64 read;
     sysFSDirent dir;
+    vfs_dir *vdir;
 
-    if (sysLv2FsOpenDir(path, &dfd)) return FAILED;
+    vdir = fs_opendir(path);
+    if (!vdir) return FAILED;
 
     fs_chmod(path, FS_S_IFDIR | 0777);
 
@@ -2563,7 +2563,7 @@ int FixDirectory(const char* path, int fcount)
     }
 
     read = sizeof(sysFSDirent);
-    while (!sysLv2FsReadDir(dfd, &dir, &read) && (fcount >=0))
+    while (!sysLv2FsReadDir(vdir->dfd, &dir, &read) && (fcount >=0))
     {
         if (!read)
             break;
@@ -2597,7 +2597,7 @@ int FixDirectory(const char* path, int fcount)
 
         if (dir.d_type & DT_DIR)
         {
-            if(FixDirectory(newpath, fcount) == FAILED) {sysLv2FsCloseDir(dfd); return FAILED;}
+            if(FixDirectory(newpath, fcount) == FAILED) {fs_closedir(vdir); return FAILED;}
         }
         else
         {
@@ -2605,7 +2605,7 @@ int FixDirectory(const char* path, int fcount)
         }
     }
 
-    sysLv2FsCloseDir(dfd);
+    fs_closedir(vdir);
     return SUCCESS;
 }
 
