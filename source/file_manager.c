@@ -641,7 +641,14 @@ static int CountFiles(char* path, int *nfiles, int *nfolders, u64 *size)
 skip:
 
     path[p1]= 0;
-    if(is_ntfs) ps3ntfs_dirclose(pdir); else sysLv2FsCloseDir(dfd);
+    switch (get_fs_type(path)) {
+    case FS_DEFAULT:
+        sysLv2FsCloseDir(dfd);
+        break;
+    case FS_NTFS:
+        ps3ntfs_dirclose(pdir);
+	break;
+    }
 
     return ret;
 }
