@@ -546,14 +546,13 @@ static char *dyn_get_name(char *p)
 
 static int CountFiles(char* path, int *nfiles, int *nfolders, u64 *size)
 {
-    int dfd;
     u64 read;
     sysFSDirent dir;
     int ret = 0;
     int p1 = strlen(path);
-    DIR_ITER *pdir = NULL;
     struct stat st;
     bool is_ntfs = is_ntfs_path(path);
+    vfs_dir *vdir;
 
     if(is_ntfs)
     {
@@ -574,20 +573,12 @@ static int CountFiles(char* path, int *nfiles, int *nfolders, u64 *size)
 
     }
 
-
-    if(is_ntfs)
-    {
-        pdir = ps3ntfs_diropen(path);
-        if(pdir) ret = SUCCESS; else ret = FAILED;
-    }
-    else
-        ret = sysLv2FsOpenDir(path, &dfd);
-
-    if(ret) return ret;
+    vdir = fs_opendir(path);
+    if(!vdir) return = FAILED;
 
     read = sizeof(sysFSDirent);
-    while ((!is_ntfs && !sysLv2FsReadDir(dfd, &dir, &read)) ||
-           ( is_ntfs &&  ps3ntfs_dirnext(pdir, dir.d_name, &st) == SUCCESS))
+    while ((!is_ntfs && !sysLv2FsReadDir(vdir->dfd, &dir, &read)) ||
+           ( is_ntfs &&  ps3ntfs_dirnext(vdir->pdir, dir.d_name, &st) == SUCCESS))
     {
         if (!is_ntfs && !read)
             break;
@@ -642,7 +633,7 @@ static int CountFiles(char* path, int *nfiles, int *nfolders, u64 *size)
 skip:
 
     path[p1]= 0;
-    if(is_ntfs) ps3ntfs_dirclose(pdir); else sysLv2FsCloseDir(dfd);
+    fs_closedir(vdir);
 
     return ret;
 }

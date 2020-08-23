@@ -272,16 +272,15 @@ void fill_psx_iso_entries_from_device(char *path, u32 flag, t_directories *list,
     if(*max >= MAX_DIRECTORIES || scan_canceled) return;
 
     sysFSDirent dir;
-    DIR_ITER *pdir = NULL;
+    vfs_dir *vdir;
     struct stat st;
-
-    bool is_ntfs = is_ntfs_path((char *) path);
 
     fs_chmod(path, FS_S_IFDIR | 0777);
 
-    pdir = ps3ntfs_diropen(path); if(!pdir) return;
+    fs_opendir(path);
+    if(!vdir) return;
 
-    while(ps3ntfs_dirnext(pdir, dir.d_name, &st) == SUCCESS)
+    while(ps3ntfs_dirnext(vdir->pdir, dir.d_name, &st) == SUCCESS)
     {
         if(*max >= MAX_DIRECTORIES) break;
 
@@ -337,7 +336,7 @@ void fill_psx_iso_entries_from_device(char *path, u32 flag, t_directories *list,
         if(list[*max].title[0]) (*max) ++;
     }
 
-    ps3ntfs_dirclose(pdir);
+    fs_closedir(vdir);
 }
 
 int fill_iso_entries_from_device(char *path, u32 flag, t_directories *list, int *max, unsigned long ioType)
@@ -368,16 +367,17 @@ int fill_iso_entries_from_device(char *path, u32 flag, t_directories *list, int 
     bool is_rx_video = (strcmp(path, "/dev_hdd0/game/RXMOV")==SUCCESS); if(is_rx_video) strcpy(path, "/dev_hdd0/game\0");
 
     sysFSDirent dir;
-    DIR_ITER *pdir = NULL;
+    vfs_dir *vdir;
     struct stat st;
 
     bool is_ntfs = is_ntfs_path((char *) path);
 
-    pdir = ps3ntfs_diropen(path); if(!pdir) goto exit_function;
+    vdir = fs_opendir(path);
+    if(!vdir) goto exit_function;
 
     fs_chmod(path, FS_S_IFDIR | 0777);
 
-    while(ps3ntfs_dirnext(pdir, dir.d_name, &st) == SUCCESS)
+    while(ps3ntfs_dirnext(vdir->pdir, dir.d_name, &st) == SUCCESS)
     {
         if(*max >= MAX_DIRECTORIES) break;
 
@@ -722,7 +722,7 @@ add_file_to_list:
         if(*max >= MAX_DIRECTORIES) break;
     }
 
-    ps3ntfs_dirclose(pdir);
+    fs_closedir(vdir);
 
 exit_function:
 

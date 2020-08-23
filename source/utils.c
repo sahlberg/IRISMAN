@@ -2493,19 +2493,17 @@ void DeleteDirectory(const char* path)
 {
     char newpath[0x440];
     sysFSDirent dir; u64 read = sizeof(sysFSDirent);
+    vfs_dir *vdir;
 
     bool is_ntfs = is_ntfs_path((char *) path);
 
+    fs_chmod(path, FS_S_IFDIR | 0777);
+    if ((vdir = fs_opendir(path)) == NULL) return;
+
     if (!is_ntfs)
     {
-        int dfd;
-
-        if (sysLv2FsOpenDir(path, &dfd)) return;
-
-        fs_chmod(path, FS_S_IFDIR | 0777);
-
         read = sizeof(sysFSDirent);
-        while (!sysLv2FsReadDir(dfd, &dir, &read))
+        while (!sysLv2FsReadDir(vdir->dfd, &dir, &read))
         {
             if (!read) break;
 
@@ -2525,17 +2523,12 @@ void DeleteDirectory(const char* path)
                 sysLv2FsUnlink(newpath);
             }
         }
-
-        sysLv2FsCloseDir(dfd);
     }
     else
     {
         struct stat st;
-        DIR_ITER *pdir = NULL;
 
-        if ((pdir = ps3ntfs_diropen(path)) == NULL) return;
-
-        while (ps3ntfs_dirnext(pdir, dir.d_name, &st) == 0)
+        while (ps3ntfs_dirnext(vdir->pdir, dir.d_name, &st) == 0)
         {
             if(dir.d_name[0]=='.' && (dir.d_name[1]==0 || dir.d_name[1]=='.')) continue;
 
@@ -2548,9 +2541,9 @@ void DeleteDirectory(const char* path)
 
             ps3ntfs_unlink(newpath);
         }
-
-        ps3ntfs_dirclose(pdir);
     }
+
+    fs_closedir(vdir);
 }
 
 int FixDirectory(const char* path, int fcount)
