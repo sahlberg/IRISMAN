@@ -270,7 +270,7 @@ static int fast_copy_add(char *pathr, char *pathw, char *file)
 
         sysFsClose(fdw);
 
-        sysFsChmod(fast_files[fast_num_files].pathw, FS_S_IFMT | 0777);
+        fs_chmod(fast_files[fast_num_files].pathw, FS_S_IFMT | 0777);
 
         DPrintf("%s ", language[FASTCPADD_COPYING]);
         DPrintf("%s\n", fast_files[current_fast_file_r].pathr);
@@ -750,7 +750,7 @@ int fast_copy_process()
 
                     fast_files[current_fast_file_w].t_write.fd = -1;
 
-                    sysFsChmod(fast_files[current_fast_file_w].pathw, FS_S_IFMT | 0777);
+                    fs_chmod(fast_files[current_fast_file_w].pathw, FS_S_IFMT | 0777);
                 }
 
 
@@ -798,7 +798,7 @@ int fast_copy_process()
 
                     fast_files[current_fast_file_w].t_write.fd = -1;
 
-                    sysFsChmod(fast_files[current_fast_file_w].pathw, FS_S_IFMT | 0777);
+                    fs_chmod(fast_files[current_fast_file_w].pathw, FS_S_IFMT | 0777);
                 }
 
 

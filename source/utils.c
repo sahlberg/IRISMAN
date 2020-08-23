@@ -784,7 +784,7 @@ int rmdir_secure(void *path)
     {
         closedir(dir);
 
-        sysFsChmod(path, FS_S_IFDIR | 0777);
+        fs_chmod(path, FS_S_IFDIR | 0777);
         ret = sysLv2FsRmdir(path);
     }
 
@@ -937,7 +937,7 @@ static int my_game_test(char *path)
     dir = opendir(path);
     if(!dir) return FAILED;
 
-    sysFsChmod(path, FS_S_IFDIR | 0777);
+    fs_chmod(path, FS_S_IFDIR | 0777);
 
     while(true)
     {
@@ -1200,7 +1200,7 @@ static int my_game_delete(char *path)
 
     dir = opendir(path);
     if(!dir) return FAILED;
-    sysFsChmod(path, FS_S_IFDIR | 0777);
+    fs_chmod(path, FS_S_IFDIR | 0777);
 
     copy_split_to_cache = 0;
 
@@ -1230,7 +1230,7 @@ static int my_game_delete(char *path)
         {
             sprintf(f, "%s/%s", path, entry->d_name);
 
-            sysFsChmod(f, FS_S_IFMT | 0777);
+            fs_chmod(f, FS_S_IFMT | 0777);
             if(sysLv2FsUnlink(f)){abort_copy = 3;DPrintf("Deleting Error!!!\n -> %s\n\n", f); break;}
 
             DPrintf("%s %s\n\n", language[GAMEDELFL_DELETED], f);
@@ -2502,7 +2502,7 @@ void DeleteDirectory(const char* path)
 
         if (sysLv2FsOpenDir(path, &dfd)) return;
 
-        sysFsChmod(path, FS_S_IFDIR | 0777);
+        fs_chmod(path, FS_S_IFDIR | 0777);
 
         read = sizeof(sysFSDirent);
         while (!sysLv2FsReadDir(dfd, &dir, &read))
@@ -2561,7 +2561,7 @@ int FixDirectory(const char* path, int fcount)
 
     if (sysLv2FsOpenDir(path, &dfd)) return FAILED;
 
-    sysFsChmod(path, FS_S_IFDIR | 0777);
+    fs_chmod(path, FS_S_IFDIR | 0777);
 
     if (fcount == 0)
     {

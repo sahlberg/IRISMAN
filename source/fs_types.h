@@ -33,5 +33,6 @@ typedef struct {
 vfs_dir *fs_opendir(const char *path);
 void fs_closedir(vfs_dir *d);
 int fs_mkdir(const char *path, int mode);
+int fs_chmod(const char *path, int mode);
 
 #endif /* _FS_TYPES_H_ */

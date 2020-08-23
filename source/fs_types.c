@@ -58,3 +58,14 @@ int fs_mkdir(const char *path, int mode)
                 return mkdir(path, mode);
         }
 }
+
+int fs_chmod(const char *path, int mode)
+{
+        switch (get_fs_type(path)) {
+        case FS_NTFS:
+                /* We never do chmod on ntfs from IRISMAN */
+                return SUCCESS;
+        case FS_PS3:
+                return sysFsChmod(path, mode);
+        }
+}

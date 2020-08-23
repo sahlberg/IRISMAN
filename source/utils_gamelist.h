@@ -277,7 +277,7 @@ void fill_psx_iso_entries_from_device(char *path, u32 flag, t_directories *list,
 
     bool is_ntfs = is_ntfs_path((char *) path);
 
-    if(!is_ntfs) sysFsChmod(path, FS_S_IFDIR | 0777);
+    fs_chmod(path, FS_S_IFDIR | 0777);
 
     pdir = ps3ntfs_diropen(path); if(!pdir) return;
 
@@ -375,7 +375,7 @@ int fill_iso_entries_from_device(char *path, u32 flag, t_directories *list, int 
 
     pdir = ps3ntfs_diropen(path); if(!pdir) goto exit_function;
 
-    if(!is_ntfs) sysFsChmod(path, FS_S_IFDIR | 0777);
+    fs_chmod(path, FS_S_IFDIR | 0777);
 
     while(ps3ntfs_dirnext(pdir, dir.d_name, &st) == SUCCESS)
     {
@@ -632,7 +632,7 @@ int fill_iso_entries_from_device(char *path, u32 flag, t_directories *list, int 
                     {
                         fwrite(plugin_args, sizeof(plugin_args), 1, flistW);
                         fclose(flistW);
-                        sysFsChmod(ntfs_path, 0666);
+                        fs_chmod(ntfs_path, 0666);
                     }
                 }
             }

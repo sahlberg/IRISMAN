@@ -584,7 +584,7 @@ int download_file(char *url, char *file, int mode, u64 *size)
     fp = fopen(file, "wb");
     if(!fp) {if(show_http_errors) DrawDialogOKTimer("Error saving file", 2000.0f); goto err;}
 
-    if(!strncmp(file, "/dev_hdd0", 9)) sysFsChmod(file, FS_S_IFMT | 0777);
+    if(!strncmp(file, "/dev_hdd0", 9)) fs_chmod(file, FS_S_IFMT | 0777);
 
     int acum = 0;
     int acum2 = 0;
