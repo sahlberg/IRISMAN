@@ -574,7 +574,7 @@ static int CountFiles(char* path, int *nfiles, int *nfolders, u64 *size)
     }
 
     vdir = fs_opendir(path);
-    if(!vdir) return = FAILED;
+    if(!vdir) return FAILED;
 
     read = sizeof(sysFSDirent);
     while ((!is_ntfs && !sysLv2FsReadDir(vdir->dfd, &dir, &read)) ||
@@ -1230,6 +1230,7 @@ static void change_dir(char *cur_path, char *path, char *dirname)
     s32 fd;
     DIR_ITER *pdir = NULL;
     bool is_ntfs;
+    vfs_dir *vdir;
 
     frame = 300; //force immediate refresh
 
@@ -1244,13 +1245,10 @@ static void change_dir(char *cur_path, char *path, char *dirname)
 
         if(n == 0) {path[n] = '/'; strcpy(cur_path, &path[n+1]); path[n+1] = 0;} else {strcpy(cur_path, &path[n + 1]); path[n] = 0;}
 
-        is_ntfs = is_ntfs_path(path);
-
-        if(!is_ntfs && sysLv2FsOpenDir(path, &fd) == SUCCESS)
-            sysLv2FsCloseDir(fd);
-        else if(is_ntfs && (pdir = ps3ntfs_diropen(path)) != NULL)
-            ps3ntfs_dirclose(pdir);
-        else
+        vdir = fs_opendir(path);
+	if (vdir)
+	        fs_closedir(vdir);
+	else
             path[1] = 0; // to root
 
         if(fm_pane) nentries2 = 0; else nentries1 = 0;
@@ -1604,6 +1602,7 @@ int file_manager(char *pathw1, char *pathw2)
     s32 fd;
     DIR_ITER *pdir = NULL;
     struct stat st;
+    vfs_dir *vdir;
 
     bool have_dot;
 
@@ -1686,14 +1685,11 @@ int file_manager(char *pathw1, char *pathw2)
 
         if(update_devices1)
         {
-            is_ntfs = is_ntfs_path(path1);
-
-            if(!is_ntfs && sysLv2FsOpenDir(path1, &fd) == 0)
-                sysLv2FsCloseDir(fd);
-            else if(is_ntfs && (pdir = ps3ntfs_diropen(path1)) != NULL)
-                ps3ntfs_dirclose(pdir);
-            else
-                path1[1] = 0; // to root
+	    vdir = fs_opendir(path1);
+	    if (vdir)
+	            fs_closedir(vdir);
+	    else
+	            path1[1] = 0; // to root
 
             nentries1 = pos1 = sel1 = 0;
             update_device_sizes |= 1;
@@ -1701,14 +1697,11 @@ int file_manager(char *pathw1, char *pathw2)
 
         if(update_devices2)
         {
-            is_ntfs = is_ntfs_path(path2);
-
-            if(!is_ntfs && sysLv2FsOpenDir(path2, &fd) == 0)
-                sysLv2FsCloseDir(fd);
-            else if(is_ntfs && (pdir = ps3ntfs_diropen(path2)) != NULL)
-                ps3ntfs_dirclose(pdir);
-            else
-                path2[1] = 0; // to root
+	    vdir = fs_opendir(path2);
+	    if (vdir)
+	            fs_closedir(vdir);
+	    else
+	            path2[1] = 0; // to root
 
             nentries2 = pos2 = sel2 = 0;
             update_device_sizes |= 2;
@@ -2357,14 +2350,11 @@ int file_manager(char *pathw1, char *pathw2)
 
                 if(n == 0) {path1[n] = '/'; path1[n+1] = 0;} else path1[n] = 0;
 
-                is_ntfs = is_ntfs_path(path1);
-
-                if(!is_ntfs && sysLv2FsOpenDir(path1, &fd) == 0)
-                    sysLv2FsCloseDir(fd);
-                else if(is_ntfs && (pdir = ps3ntfs_diropen(path1)) != NULL)
-                    ps3ntfs_dirclose(pdir);
-                else
-                    path1[1] = 0; // to root
+		vdir = fs_opendir(path1);
+		if (vdir)
+		        fs_closedir(vdir);
+		else
+		        path1[1] = 0; // to root
 
                 nentries1 = pos1 = sel1 = 0;
                 update_device_sizes |= 1; update_devices1 = true;
@@ -2501,14 +2491,11 @@ int file_manager(char *pathw1, char *pathw2)
 
                 if(n == 0) {path2[n] = '/'; path2[n+1] = 0;} else path2[n] = 0;
 
-                is_ntfs = is_ntfs_path(path2);
-
-                if(!is_ntfs && sysLv2FsOpenDir(path2, &fd) == 0)
-                    sysLv2FsCloseDir(fd);
-                else if(is_ntfs && (pdir = ps3ntfs_diropen(path2)) != NULL)
-                    ps3ntfs_dirclose(pdir);
-                else
-                    path2[1] = 0; // to root
+		vdir = fs_opendir(path2);
+		if (vdir)
+		        fs_closedir(vdir);
+		else
+		        path2[1] = 0; // to root
 
                 nentries2 = pos2 = sel2 = 0;
                 update_device_sizes |= 2; update_devices2 = true;
