@@ -15,6 +15,7 @@
     You should have received a copy of the GNU General Public License
     along with HMANAGER4.  If not, see <http://www.gnu.org/licenses/>.
 */
+#include "fs_types.h"
 #include "loader.h"
 
 #include <stdio.h>

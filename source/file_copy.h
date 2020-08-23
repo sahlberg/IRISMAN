@@ -486,15 +486,13 @@ skip:
 
 int CopyDirectory(char* path, char* path2, char* path3)
 {
-    int dfd;
     u64 read;
     sysFSDirent dir;
-    DIR_ITER *pdir = NULL;
     struct stat st;
     int ret = 0;
     int p1 = strlen(path);
     int p2 = strlen(path2);
-
+    vfs_dir *vdir;
     s32 flags = 0;
 
     // avoid recursive-infinite copy
@@ -505,22 +503,15 @@ int CopyDirectory(char* path, char* path2, char* path3)
     if(is_ntfs_path(path )) flags|= CPY_FILE1_IS_NTFS;
     if(is_ntfs_path(path2)) flags|= CPY_FILE2_IS_NTFS;
 
-    if(flags & CPY_FILE1_IS_NTFS)
-    {
-        pdir = ps3ntfs_diropen(path);
-        if(pdir) ret = SUCCESS; else ret = FAILED;
-    }
-    else
-        ret = sysLv2FsOpenDir(path, &dfd);
-
-    if(ret) return FAILED;
+    vdir = fs_opendir(path);
+    if(vdir == NULL) return FAILED;
 
     if(flags & CPY_FILE2_IS_NTFS) ps3ntfs_mkdir(path2, 0777); else sysLv2FsMkdir(path2, 0777);
 
     read = sizeof(sysFSDirent);
 
-    while ((!(flags & CPY_FILE1_IS_NTFS) && !sysLv2FsReadDir(dfd, &dir, &read)) ||
-           ( (flags & CPY_FILE1_IS_NTFS) && ps3ntfs_dirnext(pdir, dir.d_name, &st) == SUCCESS))
+    while ((!(flags & CPY_FILE1_IS_NTFS) && !sysLv2FsReadDir(vdir->dfd, &dir, &read)) ||
+           ( (flags & CPY_FILE1_IS_NTFS) && ps3ntfs_dirnext(vdir->pdir, dir.d_name, &st) == SUCCESS))
     {
         if (!(flags & CPY_FILE1_IS_NTFS) && !read)
             break;
@@ -558,7 +549,7 @@ skip:
     path[p1] = 0;
     path2[p2] = 0;
 
-    if(flags & CPY_FILE1_IS_NTFS) ps3ntfs_dirclose(pdir); else sysLv2FsCloseDir(dfd);
+    fs_closedir(vdir);
 
     return ret;
 }

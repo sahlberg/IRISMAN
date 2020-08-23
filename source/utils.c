@@ -236,7 +236,7 @@ int ExtractFileFromISO(char *iso_file, char *file, char *outfile)
 
 u8 game_category[3] = "??";
 
-fs_type get_fs_type(char *path)
+fs_type get_fs_type(const char *path)
 {
     if (!strncmp(path, "/ntfs", 5))
         return FS_NTFS;
