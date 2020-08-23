@@ -24,7 +24,7 @@ Credits:
 - Zz_SACRO_zZ
 
 */
-
+#include "fs_types.h"
 #include "utils.h"
 #include "language.h"
 #include <sys/file.h>
@@ -236,11 +236,20 @@ int ExtractFileFromISO(char *iso_file, char *file, char *outfile)
 
 u8 game_category[3] = "??";
 
-bool is_ntfs_path(char *path)
+fs_type get_fs_type(char *path)
 {
-    return (!strncmp(path, "/ntfs", 5) || !strncmp(path, "/ext", 4));
+    if (!strncmp(path, "/ntfs", 5))
+        return FS_NTFS;
+    if (!strncmp(path, "/ext", 4))
+        return FS_NTFS;
+
+    return FS_PS3;
 }
 
+bool is_ntfs_path(char *path)
+{
+    return get_fs_type(path) == FS_NTFS;
+}
 
 bool is_video(char *ext)
 {
