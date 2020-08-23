@@ -501,12 +501,11 @@ int CopyDirectory(char* path, char* path2, char* path3)
     filepath_check(path2);
 
     if(is_ntfs_path(path )) flags|= CPY_FILE1_IS_NTFS;
-    if(is_ntfs_path(path2)) flags|= CPY_FILE2_IS_NTFS;
 
     vdir = fs_opendir(path);
     if(vdir == NULL) return FAILED;
 
-    if(flags & CPY_FILE2_IS_NTFS) ps3ntfs_mkdir(path2, 0777); else sysLv2FsMkdir(path2, 0777);
+    fs_mkdir(path2, 0777);
 
     read = sizeof(sysFSDirent);
 

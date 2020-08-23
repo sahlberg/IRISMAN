@@ -35,6 +35,7 @@
 
 */
 
+#include "fs_types.h"
 #include "iso.h"
 #include "main.h"
 #include "utils.h"
@@ -3250,7 +3251,7 @@ int extractps3iso(char *f_iso, char *g_path, int split)
 
     len_path2 = strlen(path2);
 
-    ps3ntfs_mkdir(path2, 0766); // make directory
+    fs_mkdir(path2, 0766);
 
     u64 avail = get_disk_free_space(path2);
 
@@ -3398,7 +3399,7 @@ int extractps3iso(char *f_iso, char *g_path, int split)
 
         strcat(path2, string2);
 
-        ps3ntfs_mkdir(path2, 0766); // make directory
+	fs_mkdir(path2, 0766);
 
         path2[len_path2] = 0;
 

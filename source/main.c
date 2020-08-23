@@ -8280,7 +8280,7 @@ void draw_device_mkiso(float x, float y, int index, char *path)
 
         pause_music(1);
 
-        ps3ntfs_mkdir(tmp_path, 0777);
+	fs_mkdir(tmp_path, 0777);
 
         char source_path[MAXPATHLEN];
 
@@ -8467,7 +8467,7 @@ void draw_device_xtiso(float x, float y, int index)
 
         pause_music(1);
 
-        ps3ntfs_mkdir(tmp_path, 0777);
+	fs_mkdir(tmp_path, 0777);
 
         extractps3iso(directories[currentgamedir].path_name, tmp_path, (list_box_devices[select_option] & 64) != 0 ? 1 : 0);
 
@@ -8650,7 +8650,7 @@ void draw_device_cpyiso(float x, float y, int index)
                 strcpy(temp_buffer2, "/dev_hdd0/PS3ISO");
         }
 
-        ps3ntfs_mkdir(temp_buffer2, 0777);
+	fs_mkdir(temp_buffer2, 0777);
 
         u64 avail = get_disk_free_space(temp_buffer2);
 

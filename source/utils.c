@@ -765,26 +765,7 @@ int rename_secure(void *path1, void *path2)
 
 int mkdir_secure(void *path)
 {
-    int ret = FAILED;
-
-    bool is_ntfs = is_ntfs_path(path);
-
-    if(is_ntfs)
-    {
-        ret = ps3ntfs_mkdir(path, 0777);
-    }
-    else
-    {
-        DIR  *dir = opendir(path);
-        if(!dir)
-        {
-            ret = mkdir(path, S_IRWXO | S_IRWXU | S_IRWXG | S_IFDIR);
-        }
-        else
-            closedir(dir);
-    }
-
-    return ret;
+    return fs_mkdir(path, S_IRWXO | S_IRWXU | S_IRWXG | S_IFDIR);
 }
 
 int rmdir_secure(void *path)
