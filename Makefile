@@ -7,6 +7,9 @@ ifeq ($(strip $(PSL1GHT)),)
 $(error "Please set PSL1GHT in your environment. export PSL1GHT=<path>")
 endif
 
+SMB2 = 0
+#set SMB2 to 1 to build with smb2 support
+
 #---------------------------------------------------------------------------------
 #  TITLE, APPID, CONTENTID, ICON0 SFOXML before ppu_rules.
 #---------------------------------------------------------------------------------
@@ -94,13 +97,17 @@ CFLAGS		+=	-D__MKDEF_MANAGER_DIR__="\"$(APPID)\"" -D__MKDEF_MANAGER_FULLDIR__="\
 CFLAGS		+=	-DUSE_MEMCPY_SYSCALL
 CFLAGS		+=	-DUSE_DISC_CALLBACK
 CFLAGS		+=	-D'__MKDEF_GAMES_DIR="$(WITH_GAMES_DIR)"'
-
+ifeq ($(SMB2),1)
+	CFLAGS += -DSMB2
+endif
 
 CXXFLAGS	=	$(CFLAGS)
 
 
 LDFLAGS		=	$(MACHDEP) -Wl,-Map,$(notdir $@).map
-
+ifeq ($(SMB2),1)
+	LDFLAGS += -lsmb2
+endif
 #---------------------------------------------------------------------------------
 # list of directories containing libraries, this must be the top level containing
 # include and lib
