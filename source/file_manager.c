@@ -57,6 +57,7 @@
 
 #include <spu_soundlib.h>
 #include <audioplayer.h>
+#include "vfs_types.h"
 
 #define ROOT_MENU          (max_menu2 == 7)
 

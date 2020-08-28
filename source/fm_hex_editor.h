@@ -1,11 +1,13 @@
-#define FD_LV1 -1
-#define FD_LV2 -2
-
 static u64 begin_lv1 = 0x0;
 static u64 begin_lv2 = 0x0;
 static u64 size_lv1 = 0x10000000ULL;
 static u64 size_lv2 = 0x800000ULL;
 
+enum hex_modes {
+    HEX_EDIT_FILE = 0,
+    HEX_EDIT_RAM  = 1,
+    HEX_EDIT_LV2  = 2,
+};
 
 int read_LV1(u64 pos, char *mem, int size)
 {
@@ -176,138 +178,98 @@ int write_LV2(u64 pos, char *mem, int size)
     return SUCCESS;
 }
 
-static int load_hex(bool is_ntfs, s32 fd, u64 pos, void *buffer, u64 readed)
+static int
+load_hex(enum hex_modes hex_mode, vfs_fh *fh, u64 pos, void *buffer, u64 readed)
 {
     int ret;
-    u64 temp = 0;
+    _off64_t temp = 0;
 
-    if(fd == FD_LV1)
-    {
+    if(hex_mode == HEX_EDIT_RAM) {
         ret = read_LV1(pos, buffer, (int) readed);
-
-        if(ret != 0)
-        {
-            sprintf(MEM_MESSAGE, "Read Error: 0x%08x\n\n%s", ret, getlv2error(ret));
+        if(ret != 0) {
+            sprintf(MEM_MESSAGE, "Read Error: 0x%08x\n\n%s", ret,
+		    getlv2error(ret));
             DrawDialogOK(MEM_MESSAGE);
         }
 
         return ret;
     }
-    else if(fd == FD_LV2)
-    {
-
+    if(hex_mode == HEX_EDIT_LV2) {
         ret = read_LV2(pos, buffer, (int) readed);
-
-        if(ret != 0)
-        {
-            sprintf(MEM_MESSAGE, "Read Error: 0x%08x\n\n%s", ret, getlv2error(ret));
+        if(ret != 0) {
+            sprintf(MEM_MESSAGE, "Read Error: 0x%08x\n\n%s", ret,
+		    getlv2error(ret));
             DrawDialogOK(MEM_MESSAGE);
         }
 
         return ret;
     }
 
-    if(is_ntfs)
-    {
-        temp = ps3ntfs_seek64(fd, pos, 0);
-        if(temp < 0) ret = FAILED; else ret = SUCCESS;
-    }
-    else
-        ret = sysLv2FsLSeek64(fd, pos, 0, &temp);
-
-    if(ret < 0 || pos != temp)
-    {
-        if(ret == 0) ret = (int) 0x8001001E;
-        sprintf(MEM_MESSAGE, "Lseek Error: 0x%08x\n\n%s", ret, getlv2error(ret));
+    temp = vfs_lseek64(fh, pos, SEEK_SET);
+    if(temp < 0) {
+        ret = (int) 0x8001001E;
+        sprintf(MEM_MESSAGE, "Lseek Error: 0x%08x\n\n%s", ret,
+		getlv2error(ret));
         DrawDialogOK(MEM_MESSAGE);
-
-    }
-    else
-    {
-        temp = 0;
-        if(is_ntfs)
-        {
-            ret = ps3ntfs_read(fd, buffer, readed);
-            temp = (u64) ret; if(ret > 0) ret = 0;
-        }
-        else
-            ret = sysLv2FsRead(fd, buffer, readed, &temp);
-
-        if(ret < 0 || readed != temp)
-        {
-            if(ret == 0) ret = (int) 0x8001002B;
-            sprintf(MEM_MESSAGE, "Read Error: 0x%08x\n\n%s", ret, getlv2error(ret));
-            DrawDialogOK(MEM_MESSAGE);
-        }
+	return ret;
     }
 
-    return ret;
+    ret = vfs_read(fh, buffer, readed);
+    if(ret < 0 || ret != readed) {
+        ret = (int) 0x8001002B;
+	sprintf(MEM_MESSAGE, "Read Error: 0x%08x\n\n%s", ret,
+		getlv2error(ret));
+	DrawDialogOK(MEM_MESSAGE);
+      }
+
+    return 0;
 }
 
-static int save_hex(bool is_ntfs, s32 fd, u64 pos, void *buffer, u64 readed)
+static int
+save_hex(enum hex_modes hex_mode, vfs_fh *fh, u64 pos, void *buffer, u64 readed)
 {
     int ret;
-    u64 temp = 0;
+    _off64_t temp = 0;
 
-    if(fd == FD_LV1)
-    {
+    if(hex_mode == HEX_EDIT_RAM) {
         ret = write_LV1(pos, buffer, (int) readed);
-
-        if(ret != 0)
-        {
-            sprintf(MEM_MESSAGE, "Write Error: 0x%08x\n\n%s", ret, getlv2error(ret));
+        if(ret != 0) {
+            sprintf(MEM_MESSAGE, "Write Error: 0x%08x\n\n%s", ret,
+		    getlv2error(ret));
             DrawDialogOK(MEM_MESSAGE);
         }
-
         return ret;
     }
-    else if(fd == FD_LV2)
-    {
+    
+    if(hex_mode == HEX_EDIT_LV2) {
         ret = write_LV2(pos, buffer, (int) readed);
-
-        if(ret != 0)
-        {
-            sprintf(MEM_MESSAGE, "Write Error: 0x%08x\n\n%s", ret, getlv2error(ret));
+        if(ret != 0) {
+            sprintf(MEM_MESSAGE, "Write Error: 0x%08x\n\n%s", ret,
+		    getlv2error(ret));
             DrawDialogOK(MEM_MESSAGE);
         }
 
         return ret;
     }
 
-    if(is_ntfs)
-    {
-        temp = ps3ntfs_seek64(fd, pos, 0);
-        if(temp < 0) ret = FAILED; else ret = SUCCESS;
-    }
-    else
-        ret = sysLv2FsLSeek64(fd, pos, 0, &temp);
-
-    if(ret < 0 || pos != temp) {
-        if(ret == 0) ret = (int) 0x8001001E;
-        sprintf(MEM_MESSAGE, "Lseek Error: 0x%08x\n\n%s", ret, getlv2error(ret));
+    temp = vfs_lseek64(fh, pos, SEEK_SET);
+    if(temp < 0) {
+        ret = (int) 0x8001001E;
+        sprintf(MEM_MESSAGE, "Lseek Error: 0x%08x\n\n%s", ret,
+		getlv2error(ret));
         DrawDialogOK(MEM_MESSAGE);
-
-    }
-    else
-    {
-        temp = 0;
-        if(is_ntfs)
-        {
-            ret = ps3ntfs_write(fd, buffer, readed);
-            temp = (u64) ret; if(ret>0) ret = 0;
-        }
-        else
-            ret = sysLv2FsWrite(fd, buffer, readed, &temp);
-
-        if(ret < 0 || readed != temp)
-        {
-            if(ret == 0) ret = (int) 0x8001002B;
-            sprintf(MEM_MESSAGE, "Write Error: 0x%08x\n\n%s", ret, getlv2error(ret));
-            DrawDialogOK(MEM_MESSAGE);
-        }
+	return ret;
     }
 
-    return ret;
+    ret = vfs_read(fh, buffer, readed);
+    if(ret < 0 || ret != readed) {
+        ret = (int) 0x8001002B;
+	sprintf(MEM_MESSAGE, "Write Error: 0x%08x\n\n%s", ret,
+		getlv2error(ret));
+	DrawDialogOK(MEM_MESSAGE);
+      }
+
+    return 0;
 }
 
 int memcmp_case(char * p1, char *p2, int len)
@@ -328,10 +290,11 @@ int memcmp_case(char * p1, char *p2, int len)
 
 static int find_mode = FIND_HEX_MODE;
 
-static int find_in_file(bool is_ntfs, s32 fd, u64 pos, u64 size, u64 *found, void * str, int len, int s)
+static int
+find_in_file(enum hex_modes hex_mode, vfs_fh *fh, u64 pos, u64 size, u64 *found, void * str, int len, int s)
 {
 
-    u64 temp;
+    _off64_t temp;
     u64 readed = 0;
     u32 n;
     int ret = 0;
@@ -353,60 +316,61 @@ static int find_in_file(bool is_ntfs, s32 fd, u64 pos, u64 size, u64 *found, voi
 
     float cpart = (s >= 0) ? parts * ((double) pos / (double) 0x8000) : 0;
 
-    while((s >= 0 && pos < size) || (s < 0 && pos >= 0 && flag))
-    {
-        if(fd == FD_LV1 || fd == FD_LV2)
-        {
-            ret = 0;
-            if(fd == FD_LV1) {if(begin_lv1 > pos) ret =(int) 0x8001001E; if(pos >= size_lv1) temp = 0; else  temp = pos;}
-            if(fd == FD_LV2) {if(begin_lv2 > pos) ret =(int) 0x8001001E; if(pos >= size_lv2) temp = 0; else  temp = pos;}
-        }
-        else
-        {
-            if(is_ntfs)
-                {temp = ps3ntfs_seek64(fd, pos, 0); if(temp < 0) ret = FAILED; else ret = SUCCESS;}
-            else
-                ret = sysLv2FsLSeek64(fd, pos, 0, &temp);
-        }
+    while((s >= 0 && pos < size) || (s < 0 && pos >= 0 && flag)) {
+        switch (hex_mode) {
+        case HEX_EDIT_RAM:
+  	    if(begin_lv1 > pos)
+	        ret =(int) 0x8001001E;
+	    if(pos >= size_lv1)
+	        temp = 0;
+	    else
+	        temp = pos;
+	    break;
+        case HEX_EDIT_LV2:
+	    if(begin_lv2 > pos)
+	        ret =(int) 0x8001001E;
+	    if(pos >= size_lv2)
+	        temp = 0;
+	    else
+	        temp = pos;
+	    break;
+	case HEX_EDIT_FILE:
+	    temp = vfs_lseek64(fh, pos, SEEK_SET);
+	    break;
+	}
 
-        if(ret < 0 || pos != temp)
-        {
-            if(ret == 0) ret = (int) 0x8001001E;
+        if(ret || pos != temp) {
+            if(ret == 0)
+	        ret = (int) 0x8001001E;
             msgDialogAbort();
-            sprintf(MEM_MESSAGE, "Lseek Error: 0x%08x\n\n%s", ret, getlv2error(ret));
+            sprintf(MEM_MESSAGE, "Lseek Error: 0x%08x\n\n%s", ret,
+		    getlv2error(ret));
             DrawDialogOK(MEM_MESSAGE);
             goto skip;
-
         }
-
+  
         readed = size - pos; if(readed > 0x8200ULL) readed = 0x8200ULL;
 
-        if(fd == FD_LV1)
-        {
-            ret = read_LV1(pos, mem, (int) readed);
+        switch (hex_mode) {
+        case HEX_EDIT_RAM:
+	    ret = read_LV1(pos, mem, (int) readed);
             temp = readed;
-        }
-        else if(fd == FD_LV2)
-        {
+	    break;
+        case HEX_EDIT_LV2:
             ret = read_LV2(pos, mem, (int) readed);
             temp = readed;
-        }
-        else
-        {
-            if(is_ntfs)
-            {
-                ret = ps3ntfs_read(fd, mem, readed);
-                temp = (u64) ret; if(ret > 0) ret = 0;
-            }
-            else
-                ret =sysLv2FsRead(fd, mem, readed, &temp);
-        }
+	    break;
+	case HEX_EDIT_FILE:
+ 	    temp = vfs_read(fh, mem, readed);
+	    break;
+	}
 
-        if(ret < 0 || readed != temp)
-        {
-            if(ret == 0) ret = 0x8001000C;
+        if(ret || readed != temp) {
+            if(ret == 0)
+	        ret = 0x8001000C;
             msgDialogAbort();
-            sprintf(MEM_MESSAGE, "Read Error: 0x%08x\n\n%s", ret, getlv2error(ret));
+            sprintf(MEM_MESSAGE, "Read Error: 0x%08x\n\n%s", ret,
+		    getlv2error(ret));
             DrawDialogOK(MEM_MESSAGE);
 
             goto skip;
@@ -522,13 +486,6 @@ static char help5[] = {
     "\n"
     "Special Note: Find Hex values in the file. You can use L3/R3 from    "
     "the Hex Editor window to find the previous/next result from the     current file position\n"
-};
-
-enum hex_modes
-{
-    HEX_EDIT_FILE = 0,
-    HEX_EDIT_RAM  = 1,
-    HEX_EDIT_LV2  = 2,
 };
 
 static int mark_flag = 0;
@@ -687,14 +644,13 @@ void draw_hex_editor()
     display_ttf_string(0, 0, (char *) hex_path, GREEN, 0, 12, 20);
 }
 
-void hex_editor(int hex_mode, char *path, s64 size)
+void hex_editor(enum hex_modes hex_mode, char *path, s64 size)
 {
     int n, m;
     int px, py;
 
     int help = 0;
 
-    s32 fd = FAILED;
     u64 temp;
 
     bool read_only = false;
@@ -729,8 +685,7 @@ void hex_editor(int hex_mode, char *path, s64 size)
     int f_len = 8;
     static u8 find[512];
     int find_len = 4;
-
-    bool is_ntfs = false;
+    vfs_fh *fh = NULL;
 
     mark_flag = 0;
     mark_ini = 0ULL;
@@ -738,45 +693,29 @@ void hex_editor(int hex_mode, char *path, s64 size)
 
     memset((char *) find, 0, 512);
 
-    if(hex_mode == HEX_EDIT_FILE)
-    {
-        is_ntfs = is_ntfs_path(path);
-
+    if(hex_mode == HEX_EDIT_FILE) {
         hex_filesize = size;
 
         if(hex_filesize == 0ULL) return; // ignore zero files
 
-        if(!is_ntfs)
-        {
-            ret = sysLv2FsOpen(path, SYS_O_RDWR, &fd, S_IRWXU | S_IRWXG | S_IRWXO, NULL, 0);
-            if(ret != SUCCESS)
-            {
-                read_only = true;
-                ret = sysLv2FsOpen(path, 0, &fd, S_IRWXU | S_IRWXG | S_IRWXO, NULL, 0);
-            }
-        }
-        else
-        {
-            fd = ps3ntfs_open(path, O_RDWR, 0);
-            if(fd < 0)
-            {
-                read_only = true;
-                fd = ps3ntfs_open(path, O_RDONLY, 0);
-            }
-            if(fd < 0) ret = FAILED; else ret = SUCCESS;
-        }
-
-        if(ret != SUCCESS) {sprintf(MEM_MESSAGE, "Error: Cannot read %s", path); DrawDialogOK(MEM_MESSAGE); return;}
+	fh = vfs_open(path, O_RDWR, 0);
+	if (fh == NULL) {
+		read_only = true;
+		fh = vfs_open(path, O_RDONLY, 0);
+	}
+	if(fh == NULL) {
+		sprintf(MEM_MESSAGE, "Error: Cannot read %s", path);
+		DrawDialogOK(MEM_MESSAGE);
+		return;
+	}
     }
-    else if(hex_mode == HEX_EDIT_RAM)
-    {
-        fd = FD_LV1; pos = lv1_pos;
+    if(hex_mode == HEX_EDIT_RAM) {
+        pos = lv1_pos;
         hex_filesize = size_lv1 = 0x10000000ULL;
         begin_lv1 = 0;
     }
-    else if(hex_mode == HEX_EDIT_LV2)
-    {
-        fd = FD_LV2; pos = lv2_pos;
+    if(hex_mode == HEX_EDIT_LV2) {
+        pos = lv2_pos;
         hex_filesize = size_lv2 = 0x800000ULL;
         begin_lv2 = 0;
     }
@@ -785,55 +724,58 @@ read_file:
 
     memset(MEM_HEX_EDIT, 0, 0x180);
 
-    if(fd == FD_LV1 || fd == FD_LV2)
-    {
-        ret = 0;
-        if(fd == FD_LV1) {if(begin_lv1 > pos) ret =(int) 0x8001001E; if(pos >= size_lv1) temp = 0; else  temp = pos;}
-        if(fd == FD_LV2) {if(begin_lv2 > pos) ret =(int) 0x8001001E; if(pos >= size_lv2) temp = 0; else  temp = pos;}
+    switch (hex_mode) {
+    case HEX_EDIT_RAM:
+        if(begin_lv1 > pos)
+	    ret =(int) 0x8001001E;
+	if(pos >= size_lv1)
+	    temp = 0;
+	else
+	    temp = pos;
+    case HEX_EDIT_LV2:
+        if(begin_lv2 > pos)
+	    ret =(int) 0x8001001E;
+	if(pos >= size_lv2)
+	    temp = 0;
+	else
+	    temp = pos;
+	break;
+    case HEX_EDIT_FILE:
+        temp = vfs_lseek64(fh, pos, SEEK_SET);
+	break;
     }
-    else if(is_ntfs)
-    {
-        temp = ps3ntfs_seek64(fd, pos, 0);
-        if(temp < 0) ret = FAILED; else ret = SUCCESS;
-    }
-    else
-        ret = sysLv2FsLSeek64(fd, pos, 0, &temp);
 
-    if(ret != SUCCESS || pos != temp)
-    {
-        if(ret == 0) ret = (int) 0x8001001E;
-        sprintf(MEM_MESSAGE, "Lseek Error: 0x%08x\n\n%s", ret, getlv2error(ret));
+    if(ret || pos != temp) {
+        if(ret == 0)
+	    ret = (int) 0x8001001E;
+        sprintf(MEM_MESSAGE, "Lseek Error: 0x%08x\n\n%s", ret,
+		getlv2error(ret));
         DrawDialogOK(MEM_MESSAGE);
         readed = 0;
-    }
-    else
-    {
+    } else {
         readed = hex_filesize - pos;
         if(readed > 0x180ULL) readed = 0x180ULL;
         temp = 0;
 
-        if(fd == FD_LV1)
-        {
+        switch (hex_mode) {
+        case HEX_EDIT_RAM:
             ret = read_LV1(pos, MEM_HEX_EDIT, (int) readed);
             temp = readed;
-        }
-        else if(fd == FD_LV2)
-        {
+	    break;
+        case HEX_EDIT_LV2:
             ret = read_LV2(pos, MEM_HEX_EDIT, (int) readed);
             temp = readed;
+	    break;
+	case HEX_EDIT_FILE:
+	    temp = vfs_read(fh, MEM_HEX_EDIT, readed);
+	    break;
         }
-        else if(is_ntfs)
-        {
-            ret = ps3ntfs_read(fd, MEM_HEX_EDIT, readed);
-            temp = (u64) ret; if(ret>0) ret = 0;
-        }
-        else
-            ret = sysLv2FsRead(fd, MEM_HEX_EDIT, readed, &temp);
 
-        if(ret < 0 || readed != temp)
-        {
-            if(ret == 0) ret = (int) 0x8001002B;
-            sprintf(MEM_MESSAGE, "Read Error: 0x%08x\n\n%s", ret, getlv2error(ret));
+        if(ret || readed != temp) {
+            if(ret == 0)
+	        ret = (int) 0x8001002B;
+            sprintf(MEM_MESSAGE, "Read Error: 0x%08x\n\n%s", ret,
+		    getlv2error(ret));
             DrawDialogOK(MEM_MESSAGE);
             readed = temp;
         }
@@ -991,7 +933,7 @@ read_file:
             {
                 if(modified && DrawDialogYesNo("Do you want to save the changes?") == YES)
                 {
-                    save_hex(is_ntfs, fd, pos, MEM_HEX_EDIT, readed);
+		    save_hex(hex_mode, fh, pos, MEM_HEX_EDIT, readed);
                     memcpy(MEM_HEX_READ, MEM_HEX_EDIT, 0x180);
                     modified = false;
                 }
@@ -1021,7 +963,7 @@ read_file:
             {
                 if(modified && DrawDialogYesNo("Do you want to save the changes?") == YES)
                 {
-                    save_hex(is_ntfs, fd, pos, MEM_HEX_EDIT, readed);
+		    save_hex(hex_mode, fh, pos, MEM_HEX_EDIT, readed);
                     memcpy(MEM_HEX_READ, MEM_HEX_EDIT, 0x180);
                     modified = false;
                 }
@@ -1031,7 +973,7 @@ read_file:
 
                     found = pos + (u64) ((e_y * 0x10) + (e_x>>1) + 1);
                     if(found >= hex_filesize) found = 0ULL;
-                    find_in_file(is_ntfs, fd, found, hex_filesize, &found, find, find_len, 1);
+                    find_in_file(hex_mode, fh, found, hex_filesize, &found, find, find_len, 1);
 
                     enable_menu = function_menu = HEX_EDIT_MODE;
 
@@ -1056,7 +998,7 @@ read_file:
             {
                 if(modified && DrawDialogYesNo("Do you want to save the changes?") == YES)
                 {
-                    save_hex(is_ntfs, fd, pos, MEM_HEX_EDIT, readed);
+		    save_hex(hex_mode, fh, pos, MEM_HEX_EDIT, readed);
                     memcpy(MEM_HEX_READ, MEM_HEX_EDIT, 0x180);
                     modified = false;
                 }
@@ -1066,7 +1008,7 @@ read_file:
 
                     found = pos + (u64) ((e_y * 0x10) + (e_x>>1));
                     if(found >= hex_filesize) found = 0ULL;
-                    find_in_file(is_ntfs, fd, found, hex_filesize, &found, find, find_len, -1);
+                    find_in_file(hex_mode, fh, found, hex_filesize, &found, find, find_len, -1);
 
                     enable_menu = function_menu = HEX_EDIT_MODE;
 
@@ -1097,7 +1039,7 @@ read_file:
 
                     if(modified && DrawDialogYesNo("Do you want to save the changes?") == YES)
                     {
-                        save_hex(is_ntfs, fd, pos, MEM_HEX_EDIT, readed);
+		        save_hex(hex_mode, fh, pos, MEM_HEX_EDIT, readed);
                         memcpy(MEM_HEX_READ, MEM_HEX_EDIT, 0x180);
                         modified = false;
                     }
@@ -1126,7 +1068,7 @@ read_file:
 
                     if(modified && DrawDialogYesNo("Do you want to save the changes?") == YES)
                     {
-                        save_hex(is_ntfs, fd, pos, MEM_HEX_EDIT, readed);
+		        save_hex(hex_mode, fh, pos, MEM_HEX_EDIT, readed);
                         memcpy(MEM_HEX_READ, MEM_HEX_EDIT, 0x180);
                         modified = false;
                     }
@@ -1152,7 +1094,7 @@ read_file:
                         e_y = 0;
                         if(modified && DrawDialogYesNo("Do you want to save the changes?") == YES)
                         {
-                            save_hex(is_ntfs, fd, pos, MEM_HEX_EDIT, readed);
+			    save_hex(hex_mode, fh, pos, MEM_HEX_EDIT, readed);
                             memcpy(MEM_HEX_READ, MEM_HEX_EDIT, 0x180);
                             modified = false;
                         }
@@ -1185,7 +1127,7 @@ read_file:
                         e_y = 23;
                         if(modified && DrawDialogYesNo("Do you want to save the changes?") == YES)
                         {
-                            save_hex(is_ntfs, fd, pos, MEM_HEX_EDIT, readed);
+			    save_hex(hex_mode, fh, pos, MEM_HEX_EDIT, readed);
                             memcpy(MEM_HEX_READ, MEM_HEX_EDIT, 0x180);
                             modified = false;
                         }
@@ -1205,7 +1147,7 @@ read_file:
 
                 if(modified && DrawDialogYesNo("Do you want to save the changes?") == YES)
                 {
-                    save_hex(is_ntfs, fd, pos, MEM_HEX_EDIT, readed);
+		    save_hex(hex_mode, fh, pos, MEM_HEX_EDIT, readed);
                     memcpy(MEM_HEX_READ, MEM_HEX_EDIT, 0x180);
                     modified = false;
                 }
@@ -1238,7 +1180,7 @@ read_file:
 
                 if(modified && DrawDialogYesNo("Do you want to save the changes?") == YES)
                 {
-                    save_hex(is_ntfs, fd, pos, MEM_HEX_EDIT, readed);
+		    save_hex(hex_mode, fh, pos, MEM_HEX_EDIT, readed);
                     memcpy(MEM_HEX_READ, MEM_HEX_EDIT, 0x180);
                     modified = false;
                 }
@@ -1444,7 +1386,7 @@ read_file:
                         found = pos + (u64) ((e_y * 0x10) + (e_x>>1) + 1);
                         if(found >= hex_filesize) found = 0ULL;
                         find_mode = FIND_HEX_MODE;
-                        find_in_file(is_ntfs, fd, found, hex_filesize, &found, find, find_len, 1);
+                        find_in_file(hex_mode, fh, found, hex_filesize, &found, find, find_len, 1);
 
                         enable_menu = function_menu = HEX_EDIT_MODE;
 
@@ -1502,7 +1444,7 @@ edit_options:
                                     found = pos + (u64) ((e_y * 0x10) + (e_x>>1) + 1);
                                     if(found >= hex_filesize) found = 0ULL;
                                     find_mode = FIND_TEXT_MODE;
-                                    find_in_file(is_ntfs, fd, found, hex_filesize, &found, find, find_len, 1);
+                                    find_in_file(hex_mode, fh, found, hex_filesize, &found, find, find_len, 1);
 
                                     enable_menu = function_menu = HEX_EDIT_MODE;
 
@@ -1535,7 +1477,7 @@ edit_options:
                                     found = pos + (u64) ((e_y * 0x10) + (e_x>>1) + 1);
                                     if(found >= hex_filesize) found = 0ULL;
                                     find_mode = FIND_CASE_INSENSITIVE_MODE;
-                                    find_in_file(is_ntfs, fd, found, hex_filesize, &found, find, find_len, 1);
+                                    find_in_file(hex_mode, fh, found, hex_filesize, &found, find, find_len, 1);
 
                                     enable_menu = function_menu = HEX_EDIT_MODE;
 
@@ -1568,7 +1510,7 @@ edit_options:
                                     found = pos + (u64) ((e_y * 0x10) + (e_x>>1) + 1);
                                     if(found >= hex_filesize) found = 0ULL;
                                     find_mode = FIND_HEX_MODE;
-                                    find_in_file(is_ntfs, fd, found, hex_filesize, &found, find, find_len, 1);
+                                    find_in_file(hex_mode, fh, found, hex_filesize, &found, find, find_len, 1);
 
                                     enable_menu = function_menu = HEX_EDIT_MODE;
 
@@ -1633,8 +1575,7 @@ edit_options:
                                 copy_len = 0;
                                 if(!copy_mem) DrawDialogOKTimer("Out of memory from copy function", 2000.0f);
                                 else {copy_len = mark_len;
-
-                                    if(load_hex(is_ntfs, fd, mark_ini, copy_mem, mark_len) == 0) {
+				  if(load_hex(hex_mode, fh, mark_ini, copy_mem, mark_len) == 0) {
                                         sprintf(TEMP_PATH2, "Copied %d bytes", copy_len);
                                         DrawDialogOKTimer(TEMP_PATH2, 2000.0f);
                                     }
@@ -1667,7 +1608,7 @@ edit_options:
                                 {
                                     int ret = 0;
 
-                                    ret = save_hex(is_ntfs, fd, my_pos, copy_mem, my_len);
+                                    ret = save_hex(hex_mode, fh, my_pos, copy_mem, my_len);
 
                                     if(ret == 0)
                                     {
@@ -1710,7 +1651,7 @@ edit_options:
 
             if(enable_menu && modified && DrawDialogYesNo("Do you want to save the changes?") == YES)
             {
-                save_hex(is_ntfs, fd, pos, MEM_HEX_EDIT, readed);
+	        save_hex(hex_mode, fh, pos, MEM_HEX_EDIT, readed);
                 memcpy(MEM_HEX_READ, MEM_HEX_EDIT, 0x180);
                 modified = false;
             }
@@ -1721,11 +1662,7 @@ edit_options:
 
     }
 
-    if(fd >= SUCCESS)
-    {
-        if(is_ntfs) ps3ntfs_close(fd); else  sysLv2FsClose(fd);
-    }
+    vfs_close(fh);
 
-    fd = FAILED;
     frame = 0;
 }
