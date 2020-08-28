@@ -37,6 +37,7 @@ Credits:
 #include "favourites.h"
 #include "ps3mapi.h"
 #include "dialog.h"
+#include "vfs_types.h"
 
 //---
 #define USB_MASS_STORAGE_1(n)	(0x10300000000000AULL+(n)) /* For 0-5 */
@@ -238,7 +239,7 @@ u8 game_category[3] = "??";
 
 bool is_ntfs_path(char *path)
 {
-    return (!strncmp(path, "/ntfs", 5) || !strncmp(path, "/ext", 4));
+    return get_fs_type(path) == FS_NTFS;
 }
 
 
